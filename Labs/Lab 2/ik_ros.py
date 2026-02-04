@@ -7,7 +7,7 @@ import importlib.resources as importlib_resources
 
 # NOTE before running: `python3 -m pip install --upgrade ikpy graphviz urchin networkx`
 
-target_point = [-0.043, -0.441, 0.654]
+target_point = [0.5, -0.441, 0.3]
 target_orientation = ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi/2) # [roll, pitch, yaw]
 
 # Setup the Python API
@@ -49,10 +49,30 @@ link_base_translation = urdfpy.Link(name='link_base_translation',
                                     visuals=None,
                                     collisions=None)
 modified_urdf._links.append(link_base_translation)
+
+###add rotation to the base joint
+joint_base_rotation = urdfpy.Joint(name='joint_base_rotation',
+                                      parent='base_link',
+                                      child='link_base_rotation',
+                                      joint_type='prismatic',
+                                      axis=np.array([0.0, 0.0, 1.0]),
+                                      origin=np.eye(4, dtype=np.float64),
+                                      limit=urdfpy.JointLimit(effort=100.0, velocity=1.0, lower=-1.0, upper=1.0))
+modified_urdf._joints.append(joint_base_rotation)
+link_base_rotation = urdfpy.Link(name='link_base_rotation',
+                                    inertial=None,
+                                    visuals=None,
+                                    collisions=None)
+modified_urdf._links.append(link_base_rotation)
+
 # amend the chain
 for j in modified_urdf._joints:
     if j.name == 'joint_mast':
         j.parent = 'link_base_translation'
+
+for j in modified_urdf._joints:
+    if j.name == 'joint_mast':
+        j.parent = 'link_base_rotation'
 
 new_urdf_path = "/tmp/iktutorial/stretch.urdf"
 modified_urdf.save(new_urdf_path)
