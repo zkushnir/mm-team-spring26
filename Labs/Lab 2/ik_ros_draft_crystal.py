@@ -97,12 +97,10 @@ class IKNode(hm.HelloNode):
         self.move_to_grasp_goal(target_point, target_orientation)
 
         # random motions - refine better for submission
-        self.move_to_grasp_goal([0.45, 0.15, 0.05],
-                                ikpy.utils.geometry.rpy_matrix(0, 0, np.pi / 4))
-        self.move_to_grasp_goal([0.45, -0.15, 0.10],
-                                ikpy.utils.geometry.rpy_matrix(0, 0, -np.pi / 4))
-        self.move_to_grasp_goal([0.40, 0.0, 0.20],
-                                ikpy.utils.geometry.rpy_matrix(0, np.pi / 6, 0))
+        # get current position of end effector with Lecture 2 code with 1 liner
+        # use that as target
+        self.move_to_grasp_goal([-0.043, -0.441, 0.654],
+                                ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi/2))
 
         self.stow_the_robot()
         rclpy.shutdown()
