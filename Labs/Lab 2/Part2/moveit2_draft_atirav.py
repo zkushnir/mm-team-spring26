@@ -35,6 +35,38 @@ class MoveMe(HelloNode):
             )
             # NOTE: You should delete the above example and replace it with your own goal states.
             
+            #between pose 0 to 1, the robot will lift its arm to 0.5m
+            goal_state.set_joint_group_positions(planning_group, 
+                [0.3, 0.0, 0.0,
+                0.5, self.get_joint_pos('joint_arm_l3'), 
+                self.get_joint_pos('joint_arm_l2'), self.get_joint_pos('joint_arm_l1'), self.get_joint_pos('joint_arm_l0'), 
+                self.get_joint_pos('joint_wrist_yaw'), self.get_joint_pos('joint_wrist_pitch'), self.get_joint_pos('joint_wrist_roll')]
+            )
+
+            #Between poses 1 and 2, the robot will extend its arm to 0.4 m. 
+            goal_state.set_joint_group_positions(planning_group, 
+                [0.3, 0.0, 0.0,
+                0.5, 0.4, 
+                self.get_joint_pos('joint_arm_l2'), self.get_joint_pos('joint_arm_l1'), self.get_joint_pos('joint_arm_l0'), 
+                self.get_joint_pos('joint_wrist_yaw'), self.get_joint_pos('joint_wrist_pitch'), self.get_joint_pos('joint_wrist_roll')]
+            )
+
+            #Between poses 2 and 3, the robot will rotate it’s wrist 45 degrees along each of the 3 axes.
+            goal_state.set_joint_group_positions(planning_group, 
+                [0.3, 0.0, 0.0,
+                0.5, 0.4, 
+                self.get_joint_pos('joint_arm_l2'), self.get_joint_pos('joint_arm_l1'), self.get_joint_pos('joint_arm_l0'), 
+                np.pi/4, np.pi/4, np.pi/4]
+            )
+
+            #Between poses 3 and 4, the robot will bring all of it’s arm motors back in to the stow pose.
+            goal_state.set_joint_group_positions(planning_group, 
+                [0.3, 0.0, 0.0,
+                0.2, 0.01, 
+                self.get_joint_pos('joint_arm_l2'), self.get_joint_pos('joint_arm_l1'), self.get_joint_pos('joint_arm_l0'), 
+                3.4, -0.8, 0.0]
+            )
+
             # TODO: Your code will likely go here. Note that I gave you a for loop already, which you can edit and use.
             # For base motion (x, y, theta) each goal state should be defined according to the robot's current position (or its previous goal).
             # Reminder: You can use the RViz GUI for MoveIt 2 to get a better intuition for what these goal positions should be.
