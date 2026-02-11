@@ -27,15 +27,15 @@ class MoveMe(HelloNode):
             # Ordering: [x, y, theta, lift, arm/4, arm/4, arm/4, arm/4, yaw, pitch, roll]
             # For driving the base: the positive x-axis is pointing out of the front of the robot (the flat side of the base). 
             # Positive y-axis is on the left of the robot (opposite direction the arm is facing).
-            goal_state.set_joint_group_positions(planning_group, 
-                [0.3, 0.0, 0.0, 
-                self.get_joint_pos('joint_lift'), self.get_joint_pos('joint_arm_l3'), 
-                self.get_joint_pos('joint_arm_l2'), self.get_joint_pos('joint_arm_l1'), self.get_joint_pos('joint_arm_l0'), 
-                self.get_joint_pos('joint_wrist_yaw'), self.get_joint_pos('joint_wrist_pitch'), self.get_joint_pos('joint_wrist_roll')]
-            )
+            # goal_state.set_joint_group_positions(planning_group, 
+            #     [0.3, 0.0, 0.0, 
+            #     self.get_joint_pos('joint_lift'), self.get_joint_pos('joint_arm_l3'), 
+            #     self.get_joint_pos('joint_arm_l2'), self.get_joint_pos('joint_arm_l1'), self.get_joint_pos('joint_arm_l0'), 
+            #     self.get_joint_pos('joint_wrist_yaw'), self.get_joint_pos('joint_wrist_pitch'), self.get_joint_pos('joint_wrist_roll')]
+            # )
             # NOTE: You should delete the above example and replace it with your own goal states.
             
-            #between pose 0 to 1, the robot will lift its arm to 0.5m
+            #start from start state, and then between pose 0 to 1, the robot will lift its arm to 0.5m
             goal_state.set_joint_group_positions(planning_group, 
                 [0.3, 0.0, 0.0,
                 0.5, self.get_joint_pos('joint_arm_l3'), 
