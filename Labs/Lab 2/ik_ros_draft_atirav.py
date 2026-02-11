@@ -1,8 +1,8 @@
+import os
 import ikpy.urdf.utils
 import urchin as urdfpy
 import numpy as np
 import ikpy.chain
-import stretch_body.robot
 import importlib.resources as importlib_resources
 
 import rclpy
@@ -82,6 +82,7 @@ class IKNode(hm.HelloNode):
                 j.parent = 'link_base_translation' #was link_base_rotation
 
         new_urdf_path = "/tmp/iktutorial/stretch.urdf"
+        os.makedirs('/tmp/iktutorial', exist_ok=True)
         modified_urdf.save(new_urdf_path)
 
         self.chain = ikpy.chain.Chain.from_urdf_file(new_urdf_path)
@@ -97,32 +98,54 @@ class IKNode(hm.HelloNode):
         self.move_to_grasp_goal(target_point, target_orientation)
 
         # random motions - refine better for submission
-        # get current position of end effector with Lecture 2 code with 1 liner
-        # use that as target
-        self.move_to_grasp_goal([-0.043, -0.441, 0.654],
-                                ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi/2))
+        self.move_to_grasp_goal([0.45, 0.15, 0.05],
+                                ikpy.utils.geometry.rpy_matrix(0, 0, np.pi / 4))
+        self.move_to_grasp_goal([0.45, -0.15, 0.10],
+                                ikpy.utils.geometry.rpy_matrix(0, 0, -np.pi / 4))
+        self.move_to_grasp_goal([0.40, 0.0, 0.20],
+                                ikpy.utils.geometry.rpy_matrix(0, np.pi / 6, 0))
 
-        self.stow_the_robot()
+        # Stow the robot by moving to a safe tucked configuration
+        self.move_to_pose({
+            'joint_lift': 0.2,
+            'wrist_extension': 0.01,
+            'joint_wrist_yaw': 3.4,
+            'joint_wrist_pitch': -0.8,
+            'joint_wrist_roll': 0.0
+        }, blocking=True)
         rclpy.shutdown()
 
     def move_to_grasp_goal(self, target_point, target_orientation):
-        # [1]: base rotation 
-        # [2]: base translation (was [1])
-        # [4]: lift (was [3])
-        # [6-9]: arm segments (was [5-8])
-        # [10]: wrist yaw (was [9])
-        # [12]: wrist pitch (was [11])
-        # [13]: wrist roll (was [12])
+        # Chain indices (with base_rotation + base_translation added):
+        # [0]: base (fixed, added by ikpy)
+        # [1]: joint_base_rotation (revolute)
+        # [2]: joint_base_translation (prismatic)
+        # [3]: joint_mast (fixed)
+        # [4]: joint_lift (prismatic)
+        # [5-9]: arm segments l4, l3, l2, l1, l0
+        # [10]: joint_wrist_yaw (revolute)
+        # [11]: joint_wrist_yaw_bottom (fixed)
+        # [12]: joint_wrist_pitch (revolute)
+        # [13]: joint_wrist_roll (revolute)
         q_soln = self.chain.inverse_kinematics(
             target_point,
             target_orientation,
             orientation_mode='all'
         )
+
+        # Validate IK solution
+        fk_result = self.chain.forward_kinematics(q_soln)[:3, 3]
+        err = np.linalg.norm(fk_result - np.array(target_point))
+        if not np.isclose(err, 0.0, atol=1e-2):
+            print(f'IK did not find a valid solution (error={err:.4f}), skipping motion.')
+            return
+
+        print(f'IK solution: {q_soln}')
         self.move_to_pose({
             'rotate_mobile_base': q_soln[1],
             'translate_mobile_base': q_soln[2],
             'joint_lift': q_soln[4],
-            'joint_arm': q_soln[6] + q_soln[7] + q_soln[8] + q_soln[9],
+            'wrist_extension': q_soln[5] + q_soln[6] + q_soln[7] + q_soln[8] + q_soln[9],
             'joint_wrist_yaw': q_soln[10],
             'joint_wrist_pitch': q_soln[12],
             'joint_wrist_roll': q_soln[13]
