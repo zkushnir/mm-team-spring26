@@ -65,7 +65,7 @@ from hello_helpers.hello_misc import HelloNode
 #   TARGET_OFFSET = [0.0, 0.2, 0.3]
 #
 # The orientation is ABSOLUTE (the final gripper heading you want).
-TARGET_OFFSET = [0.3, 0.5, 0.1]  # 20cm left, 10cm up, no forward motion
+TARGET_OFFSET = [0.4, -0.3, 0.1]  # 40cm forward, 30cm right, 10cm up
 TARGET_ORIENTATION = ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)
 
 
@@ -161,6 +161,9 @@ def build_ik_chain():
     #   the IK solver would be working in a frame that doesn't match reality.
 
     # 1. Base rotation: revolute joint about Z axis
+    #    Limits: ±π/2 (±90°) prevents the IK solver from finding solutions
+    #    where the robot rotates more than a quarter turn. This avoids
+    #    unintuitive solutions like "rotate 137° and drive backwards."
     joint_base_rotation = urdfpy.Joint(
         name='joint_base_rotation',
         parent='base_link',
@@ -169,7 +172,7 @@ def build_ik_chain():
         axis=np.array([0.0, 0.0, 1.0]),  # rotate about Z (yaw)
         origin=np.eye(4, dtype=np.float64),
         limit=urdfpy.JointLimit(effort=100.0, velocity=1.0,
-                                lower=-np.pi, upper=np.pi),
+                                lower=-np.pi/2, upper=np.pi/2),
     )
     modified_urdf._joints.append(joint_base_rotation)
 
@@ -180,6 +183,9 @@ def build_ik_chain():
     modified_urdf._links.append(link_base_rotation)
 
     # 2. Base translation: prismatic joint along X (after rotation)
+    #    Limits: 0 to 1.0m — FORWARD ONLY. Setting lower=0 prevents the
+    #    IK solver from driving the robot backwards. If you need backwards
+    #    motion, change lower to a negative value (e.g., -0.5).
     joint_base_translation = urdfpy.Joint(
         name='joint_base_translation',
         parent='link_base_rotation',       # child of rotation link
@@ -187,7 +193,7 @@ def build_ik_chain():
         joint_type='prismatic',
         axis=np.array([1.0, 0.0, 0.0]),   # translate along X
         origin=np.eye(4, dtype=np.float64),
-        limit=urdfpy.JointLimit(effort=100.0, velocity=1.0, lower=-1.0, upper=1.0),
+        limit=urdfpy.JointLimit(effort=100.0, velocity=1.0, lower=0.0, upper=1.0),
     )
     modified_urdf._joints.append(joint_base_translation)
 
@@ -475,6 +481,13 @@ def main():
         # --- Stow the robot first so we start from a known configuration ---
         # This retracts the arm and lowers the lift, giving us a clean starting
         # point that's far from the target so you can see the robot move.
+        # --- Safety lift: raise the arm before stowing to avoid collisions ---
+        # If the lift is too low and the arm is extended, the stow command tries
+        # to retract the arm which can hit the ground or objects. Raising the
+        # lift first gives clearance.
+        node.get_logger().info('Raising lift for safe stow...')
+        node.move_to_pose({'joint_lift': 0.5}, blocking=True)
+
         node.get_logger().info('Stowing robot to start from known configuration...')
         from std_srvs.srv import Trigger
         future = node.stow_the_robot_service.call_async(Trigger.Request())
