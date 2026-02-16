@@ -417,9 +417,11 @@ class StretchIKNode(HelloNode):
 # MAIN
 # =============================================================================
 def main():
-    rclpy.init()
+    # NOTE: We do NOT call rclpy.init() here because HelloNode.main()
+    # (called inside StretchIKNode.__init__) already calls it internally.
+    # Calling it twice causes: RuntimeError: Context.init() must only be called once
 
-    # Build the IK chain (URDF cleanup — same as original)
+    # Build the IK chain (URDF cleanup — no ROS needed for this step)
     chain = build_ik_chain()
 
     # Create our ROS 2 node
@@ -450,7 +452,10 @@ def main():
         node.get_logger().info('Interrupted by user')
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        try:
+            rclpy.shutdown()
+        except Exception:
+            pass  # HelloNode may have already shut down the context
 
 
 if __name__ == '__main__':
