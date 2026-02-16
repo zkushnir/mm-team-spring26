@@ -65,7 +65,7 @@ from hello_helpers.hello_misc import HelloNode
 #   TARGET_OFFSET = [0.0, 0.2, 0.3]
 #
 # The orientation is ABSOLUTE (the final gripper heading you want).
-TARGET_OFFSET = [0.0, 0.2, 0.1]  # 20cm left, 10cm up, no forward motion
+TARGET_OFFSET = [0.3, 0.5, 0.1]  # 20cm left, 10cm up, no forward motion
 TARGET_ORIENTATION = ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)
 
 
