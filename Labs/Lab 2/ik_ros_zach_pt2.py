@@ -533,7 +533,7 @@ def main():
              ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
 
             ("Zigzag LEFT",
-             [-0.1, 0.2, 0.1],
+             [-0.1, 0.5, 0.1],
              ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
 
             # 
@@ -543,7 +543,7 @@ def main():
 
             # 
             ("Reach FORWARD LOW",
-             [0.0, 0.2, -0.3],
+             [0.1, 0.4, -0.2],
              ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
         ]
 
