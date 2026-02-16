@@ -62,7 +62,7 @@ from hello_helpers.hello_misc import HelloNode
 #   - Z=0.8 (fairly high) → requires lift to raise
 # The Stretch's arm extends to its LEFT (positive Y in base_link frame),
 # so to reach something to the RIGHT (negative Y), the base must rotate.
-TARGET_POINT = [0.3, -0.5, 0.8]
+TARGET_POINT = [0.5, 0.5, 0.2]
 TARGET_ORIENTATION = ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)
 
 
