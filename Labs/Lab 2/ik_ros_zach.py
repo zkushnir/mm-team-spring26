@@ -54,15 +54,18 @@ from hello_helpers.hello_misc import HelloNode
 
 
 # =============================================================================
-# TARGET POSE — change these to your desired grasp goal
+# TARGET POSE — defined as a RELATIVE OFFSET from current end-effector position
 # =============================================================================
-# This target is chosen to require visible motion from a stowed position:
-#   - X=0.3 (forward) → requires base translation + arm extension
-#   - Y=-0.5 (to the robot's right) → requires base rotation (~90° right)
-#   - Z=0.8 (fairly high) → requires lift to raise
-# The Stretch's arm extends to its LEFT (positive Y in base_link frame),
-# so to reach something to the RIGHT (negative Y), the base must rotate.
-TARGET_POINT = [0.3, 0.5, 0.2]
+# These offsets are in the ROBOT'S current base_link frame:
+#   dx = forward/backward (+ = forward)
+#   dy = left/right       (+ = left, - = right)
+#   dz = up/down          (+ = up)
+#
+# Example: "move the gripper 20cm to the left and 30cm up from where it is now"
+#   TARGET_OFFSET = [0.0, 0.2, 0.3]
+#
+# The orientation is ABSOLUTE (the final gripper heading you want).
+TARGET_OFFSET = [0.0, 0.2, 0.1]  # 20cm left, 10cm up, no forward motion
 TARGET_ORIENTATION = ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)
 
 
@@ -483,12 +486,28 @@ def main():
         current_pose = node.get_current_grasp_pose(chain)
         node.get_logger().info(f'Current EE pose (stowed):\n{current_pose}')
 
+        # --- Compute absolute target from relative offset ---
+        # current_pose is a 4x4 homogeneous transform matrix.
+        # The position is in the last column: current_pose[:3, 3] = [x, y, z]
+        current_pos = current_pose[:3, 3]
+        target_point = (current_pos + np.array(TARGET_OFFSET)).tolist()
+
+        node.get_logger().info(
+            f'Current EE position: [{current_pos[0]:.3f}, {current_pos[1]:.3f}, {current_pos[2]:.3f}]'
+        )
+        node.get_logger().info(
+            f'Offset: {TARGET_OFFSET}'
+        )
+        node.get_logger().info(
+            f'Absolute target: [{target_point[0]:.3f}, {target_point[1]:.3f}, {target_point[2]:.3f}]'
+        )
+
         # Run IK and move to the target
         node.get_logger().info(
-            f'Moving to target: pos={TARGET_POINT}, '
+            f'Moving to target: pos={[f"{v:.3f}" for v in target_point]}, '
             f'orientation=rpy(0, 0, {-np.pi/2:.2f})'
         )
-        q_soln = node.move_to_grasp_goal(chain, TARGET_POINT, TARGET_ORIENTATION)
+        q_soln = node.move_to_grasp_goal(chain, target_point, TARGET_ORIENTATION)
 
         if q_soln is not None:
             # Print final pose after moving
