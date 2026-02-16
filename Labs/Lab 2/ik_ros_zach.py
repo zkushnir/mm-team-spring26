@@ -56,7 +56,13 @@ from hello_helpers.hello_misc import HelloNode
 # =============================================================================
 # TARGET POSE — change these to your desired grasp goal
 # =============================================================================
-TARGET_POINT = [-0.043, -0.441, 0.654]
+# This target is chosen to require visible motion from a stowed position:
+#   - X=0.3 (forward) → requires base translation + arm extension
+#   - Y=-0.5 (to the robot's right) → requires base rotation (~90° right)
+#   - Z=0.8 (fairly high) → requires lift to raise
+# The Stretch's arm extends to its LEFT (positive Y in base_link frame),
+# so to reach something to the RIGHT (negative Y), the base must rotate.
+TARGET_POINT = [0.3, -0.5, 0.8]
 TARGET_ORIENTATION = ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)
 
 
@@ -463,9 +469,19 @@ def main():
         # Wait until we have joint state data from the robot
         node.wait_for_joint_states()
 
-        # Print current end-effector pose
+        # --- Stow the robot first so we start from a known configuration ---
+        # This retracts the arm and lowers the lift, giving us a clean starting
+        # point that's far from the target so you can see the robot move.
+        node.get_logger().info('Stowing robot to start from known configuration...')
+        from std_srvs.srv import Trigger
+        future = node.stow_the_robot_service.call_async(Trigger.Request())
+        # Wait for stow to complete
+        time.sleep(6.0)
+        node.get_logger().info('Stow complete. Starting IK...')
+
+        # Print current end-effector pose (should be stowed position)
         current_pose = node.get_current_grasp_pose(chain)
-        node.get_logger().info(f'Current EE pose:\n{current_pose}')
+        node.get_logger().info(f'Current EE pose (stowed):\n{current_pose}')
 
         # Run IK and move to the target
         node.get_logger().info(
