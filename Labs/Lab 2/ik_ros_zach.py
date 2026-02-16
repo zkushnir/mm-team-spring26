@@ -199,11 +199,43 @@ def build_ik_chain():
     os.makedirs('/tmp/iktutorial', exist_ok=True)
     modified_urdf.save(new_urdf_path)
 
-    chain = ikpy.chain.Chain.from_urdf_file(new_urdf_path)
+    # Build the chain WITH an active_links_mask so ikpy only solves for
+    # joints that can actually move. Without this, ikpy assigns values to
+    # fixed joints (like joint_mast, joint_arm_l4) which produces solutions
+    # that look valid mathematically but can't be executed on the real robot.
+    #
+    # Index:  [0]     [1]    [2]    [3]    [4]   [5]    [6]   [7]   [8]   [9]   [10]  [11]   [12]  [13]  [14]   [15]
+    # Joint:  base_lk rot    trans  mast   lift  arm_l4 l3    l2    l1    l0    yaw   yaw_bt pitch roll  grip   grasp
+    # Type:   fixed   rev    prism  fixed  prism fixed  prism prism prism prism rev   fixed  rev   rev   fixed  fixed
+    # Active: False   True   True   False  True  False  True  True  True  True  True  False  True  True  False  False
+    active_links_mask = [
+        False,  # [0]  Base link (fixed origin)
+        True,   # [1]  joint_base_rotation (revolute)
+        True,   # [2]  joint_base_translation (prismatic)
+        False,  # [3]  joint_mast (fixed)
+        True,   # [4]  joint_lift (prismatic)
+        False,  # [5]  joint_arm_l4 (fixed)
+        True,   # [6]  joint_arm_l3 (prismatic)
+        True,   # [7]  joint_arm_l2 (prismatic)
+        True,   # [8]  joint_arm_l1 (prismatic)
+        True,   # [9]  joint_arm_l0 (prismatic)
+        True,   # [10] joint_wrist_yaw (revolute)
+        False,  # [11] joint_wrist_yaw_bottom (fixed)
+        True,   # [12] joint_wrist_pitch (revolute)
+        True,   # [13] joint_wrist_roll (revolute)
+        False,  # [14] joint_gripper_s3_body (fixed)
+        False,  # [15] joint_grasp_center (fixed)
+    ]
+
+    chain = ikpy.chain.Chain.from_urdf_file(
+        new_urdf_path,
+        active_links_mask=active_links_mask,
+    )
 
     print("\n=== IK Chain Links ===")
-    for link in chain.links:
-        print(f"  [{chain.links.index(link):2d}] {link.name:40s} type={link.joint_type}")
+    for i, link in enumerate(chain.links):
+        active = "ACTIVE" if active_links_mask[i] else "fixed"
+        print(f"  [{i:2d}] {link.name:40s} type={link.joint_type:10s} {active}")
     print()
 
     return chain
