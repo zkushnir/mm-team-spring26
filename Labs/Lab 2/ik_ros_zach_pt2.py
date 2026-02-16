@@ -511,22 +511,22 @@ def main():
         moves = [
             # Move 1: Turn right and reach forward + right
             ("Zigzag RIGHT",
-             [0.3, -0.3, 0.2],
+             [0.5, -0.2, 0.2],
              ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
 
             # Move 2: Turn left and reach forward + left
             ("Zigzag LEFT",
-             [0.2, 0.4, 0.1],
+             [0.1, 0.5, 0.1],
              ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
 
             # Move 3: Reach up high with arm extended
             ("Reach UP",
-             [0.1, -0.2, 0.4],
+             [-0.4, -0.3, 0.2],
              ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
 
             # Move 4: Come back down and forward
             ("Reach FORWARD LOW",
-             [0.3, 0.1, -0.3],
+             [0.4, -0.3, -0.3],
              ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
         ]
 
