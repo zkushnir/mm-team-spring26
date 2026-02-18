@@ -198,12 +198,12 @@ class StretchIKNode(HelloNode):
             bounds = chain.links[index].bounds
             return min(max(value, bounds[0]), bounds[1])
 
-        # Read from ROS 2 topic instead of stretch_body
+        # Read from ROS 2 topic 
         q_base_rot = 0.0   # virtual — always starts at 0
         q_base_trans = 0.0  # virtual — always starts at 0
         q_lift = bound_range('joint_lift', self.get_joint_position('joint_lift'))
 
-        # Total arm extension, divided by 4 for the ikpy chain's 4 prismatic segments
+        # Total arm extension
         total_arm = self.get_joint_position('wrist_extension')
         q_arml = bound_range('joint_arm_l0', total_arm / 4.0)
 
