@@ -54,13 +54,13 @@ class MoveMe(HelloNode):
             dict(name='pose0', x=0.0,   y=0.0,   theta=0.0,
                  lift=stow_lift, arm=stow_arm, wrist=stow_wrist),
 
-            dict(name='pose1', x=-0.25, y=-0.25, theta=0.0,
+            dict(name='pose1', x=0.2, y=0.2, theta=0.0,
                  lift=0.50,      arm=stow_arm, wrist=stow_wrist),
 
-            dict(name='pose2', x=0.40,  y=-0.20, theta=np.pi/2,
+            dict(name='pose2', x=-0.60,  y=0.0, theta=np.pi/2,
                  lift=0.50,      arm=[arm_each]*4, wrist=stow_wrist),
 
-            dict(name='pose3', x=0.20,  y=0.20,  theta=np.pi,
+            dict(name='pose3', x=-0.40,  y=-0.20,  theta=np.pi,
                  lift=0.50,      arm=[arm_each]*4,
                  wrist=[stow_wrist[0]+wrist_rot,
                         stow_wrist[1]+wrist_rot,
