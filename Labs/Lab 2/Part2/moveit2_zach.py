@@ -1,24 +1,20 @@
 import rclpy, time
 import numpy as np
+from geometry_msgs.msg import Pose, PoseStamped
 from moveit.core.robot_state import RobotState
+from shape_msgs.msg import SolidPrimitive
 from control_msgs.action import FollowJointTrajectory
 from hello_helpers.hello_misc import HelloNode
-from tf2_ros import StaticTransformBroadcaster
-from geometry_msgs.msg import TransformStamped
 import moveit2_utils
 
 # Make sure to run:
-#   ros2 launch stretch_core stretch_driver.launch.py
+# ros2 launch stretch_core stretch_driver.launch.py
 
 class MoveMe(HelloNode):
     def __init__(self):
         HelloNode.__init__(self)
         self.main('move_me', 'move_me', wait_for_first_pointcloud=False)
 
-        # Publish a static odom->base_link TF so MoveIt has a valid base frame.
-        # stretch_driver in position/trajectory mode does not publish the odom frame,
-        # which causes the current state monitor to log a warning and leave the virtual
-        # base joint uninitialized. This static transform gives it a valid anchor.
         self._static_tf = StaticTransformBroadcaster(self)
         t = TransformStamped()
         t.header.stamp = self.get_clock().now().to_msg()
@@ -34,8 +30,6 @@ class MoveMe(HelloNode):
         moveit, moveit_plan, planning_params = moveit2_utils.setup_moveit(planning_group)
 
         # Snapshot stow positions.  Clamp arm segments away from the 0.0 minimum
-        # bound — encoder noise can leave them slightly negative, which makes OMPL
-        # reject the goal state as "invalid bounds".
         stow_lift = self.get_joint_pos('joint_lift')
         stow_arm  = [max(1e-3, self.get_joint_pos(f'joint_arm_l{i}')) for i in range(3, -1, -1)]
         stow_wrist = [
@@ -73,7 +67,7 @@ class MoveMe(HelloNode):
                  lift=stow_lift, arm=stow_arm, wrist=stow_wrist),
         ]
 
-        # Track the robot's absolute position so we can compute deltas.
+        # Track the robot's absolute position 
         prev_x, prev_y, prev_theta = 0.0, 0.0, 0.0
 
         for seg_idx in range(len(abs_poses) - 1):
@@ -105,7 +99,7 @@ class MoveMe(HelloNode):
 
             self.execute_plan(plan)
 
-            # Advance the tracked absolute position for the next delta calculation.
+            # Advance the tracked absolute position 
             prev_x, prev_y, prev_theta = goal['x'], goal['y'], goal['theta']
             time.sleep(0.5)
 
