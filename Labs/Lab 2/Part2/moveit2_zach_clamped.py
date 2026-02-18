@@ -69,7 +69,7 @@ class MoveMe(HelloNode):
                         stow_wrist[2]+wrist_rot]),
 
             # From pose3 (facing right -π/2): right=(-x)×0.4, back=(+y)×0.2, rotate -90° → theta=π
-            dict(name='pose4', x=.1, y=0,  theta=0,
+            dict(name='pose4', x=.1, y=-.4,  theta=0,
                  lift=stow_lift, arm=stow_arm, wrist=stow_wrist),
         ]
 
