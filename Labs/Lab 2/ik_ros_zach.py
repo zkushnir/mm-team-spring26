@@ -1,16 +1,3 @@
-#!/usr/bin/env python3
-"""
-
-PREREQUISITES:
-  1. Install dependencies (on the Stretch):
-       pip3 install ikpy urchin --break-system-packages
-  2. Launch the Stretch driver in a separate terminal:
-       ros2 launch stretch_core stretch_driver.launch.py mode:=position
-  3. Then run this script:
-       python3 ik_ros2.py
-
-"""
-
 import numpy as np
 import ikpy.chain
 import ikpy.utils.geometry
@@ -25,9 +12,6 @@ TARGET_OFFSET = [0.5, 0 , 0.06]
 TARGET_ORIENTATION = ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)
 
 
-# =============================================================================
-# URDF CLEANUP 
-# =============================================================================
 def build_ik_chain():
    
     pkg_path = str(importlib_resources.files('stretch_urdf'))
@@ -36,7 +20,7 @@ def build_ik_chain():
     original_urdf = urdfpy.URDF.load(urdf_file_path)
     modified_urdf = original_urdf.copy()
 
-    # --- Remove links we don't need for arm IK ---
+    # Remove links we don't need for arm IK
     names_of_links_to_remove = [
         'link_right_wheel', 'link_left_wheel', 'caster_link',
         'link_head', 'link_head_pan', 'link_head_tilt',
@@ -66,7 +50,7 @@ def build_ik_chain():
     for lr in links_to_remove:
         modified_urdf._links.remove(lr)
 
-    # --- Remove corresponding joints ---
+    # Remove corresponding joints
     names_of_joints_to_remove = [
         'joint_right_wheel', 'joint_left_wheel', 'caster_joint',
         'joint_head', 'joint_head_pan', 'joint_head_tilt',
@@ -145,10 +129,6 @@ def build_ik_chain():
     modified_urdf.save(new_urdf_path)
 
     
-    # Index:  [0]     [1]    [2]    [3]    [4]   [5]    [6]   [7]   [8]   [9]   [10]  [11]   [12]  [13]  [14]   [15]
-    # Joint:  base_lk rot    trans  mast   lift  arm_l4 l3    l2    l1    l0    yaw   yaw_bt pitch roll  grip   grasp
-    # Type:   fixed   rev    prism  fixed  prism fixed  prism prism prism prism rev   fixed  rev   rev   fixed  fixed
-    # Active: False   True   True   False  True  False  True  True  True  True  True  False  True  True  False  False
     active_links_mask = [
         False,  # [0]  Base link (fixed origin)
         True,   # [1]  joint_base_rotation (revolute)
@@ -182,47 +162,22 @@ def build_ik_chain():
     return chain
 
 
-# =============================================================================
 # ROS 2 NODE 
-# =============================================================================
 class StretchIKNode(HelloNode):
-    """
-    A ROS 2 node that:
-      1. Subscribes to /stretch/joint_states (handled by HelloNode parent class)
-      2. Runs ikpy inverse kinematics
-      3. Commands the robot via move_to_pose() (handled by HelloNode parent class)
-
-    HelloNode gives us for free:
-      - self.joint_state  → latest JointState message (updated by subscriber)
-      - self.move_to_pose(dict, blocking=True) → sends FollowJointTrajectory goals
-      - self.trajectory_client → the action client (if you need lower-level control)
-    """
-
+    
     def __init__(self):
         HelloNode.__init__(self)
-        # Initialize the ROS 2 node. HelloNode.main() sets up:
-        #   - The /stretch/joint_states subscriber
-        #   - The /stretch_controller/follow_joint_trajectory action client
-        #   - TF2 buffer (for transforms, if needed later)
         HelloNode.main(self, 'stretch_ik_node', 'stretch_ik_node',
                         wait_for_first_pointcloud=False)
 
     def wait_for_joint_states(self):
-        """Block until we've received at least one JointState message."""
         while not self.joint_state.position:
             self.get_logger().info('Waiting for /stretch/joint_states...')
             time.sleep(0.1)
         self.get_logger().info('Joint states received!')
 
     def get_joint_position(self, joint_name):
-        """
-        Look up a joint's current position from the latest JointState message.
         
-        The JointState message has parallel arrays:
-          joint_state.name     = ['joint_arm_l0', 'joint_lift', 'joint_wrist_yaw', ...]
-          joint_state.position = [0.0,             0.6,          1.57,              ...]
-        So we find the index of the name and return the position at that index.
-        """
         js = self.joint_state
         if joint_name in js.name:
             return js.position[js.name.index(joint_name)]
@@ -270,7 +225,7 @@ class StretchIKNode(HelloNode):
         q_pitch = q[12]      # Wrist pitch (radians)
         q_roll = q[13]       # Wrist roll (radians)
 
-        # --- Step 1: Rotate the base ---
+        # Step 1: Rotate the base 
         if abs(q_base_rot) > 0.001:  # skip if negligible rotation
             self.get_logger().info(f'Step 1: Rotating base by {q_base_rot:.3f} rad '
                                    f'({np.degrees(q_base_rot):.1f} deg)')
@@ -278,7 +233,7 @@ class StretchIKNode(HelloNode):
         else:
             self.get_logger().info('Step 1: No base rotation needed')
 
-        # --- Step 2: Translate + move arm/wrist simultaneously ---
+        # Step 2: Translate + move arm/wrist simultaneously
         self.get_logger().info(
             f'Step 2: Commanding translate={q_base_trans:.3f}m, lift={q_lift:.3f}m, '
             f'arm={q_arm:.3f}m, yaw={q_yaw:.2f}, pitch={q_pitch:.2f}, roll={q_roll:.2f}'
@@ -328,20 +283,13 @@ class StretchIKNode(HelloNode):
         return chain.forward_kinematics(q)
 
 
-# =============================================================================
-# MAIN
-# =============================================================================
 def main():
     
-
-    # Build the IK chain (URDF cleanup — no ROS needed for this step)
     chain = build_ik_chain()
 
-    # Create our ROS 2 node
     node = StretchIKNode()
 
     try:
-        # Wait until we have joint state data from the robot
         node.wait_for_joint_states()
 
     
@@ -359,9 +307,7 @@ def main():
         current_pose = node.get_current_grasp_pose(chain)
         node.get_logger().info(f'Current EE pose (stowed):\n{current_pose}')
 
-        # --- Compute absolute target from relative offset ---
-        # current_pose is a 4x4 homogeneous transform matrix.
-        # The position is in the last column: current_pose[:3, 3] = [x, y, z]
+        # Compute absolute target from relative offset 
         current_pos = current_pose[:3, 3]
         target_point = (current_pos + np.array(TARGET_OFFSET)).tolist()
 
@@ -395,7 +341,7 @@ def main():
         try:
             rclpy.shutdown()
         except Exception:
-            pass  # HelloNode may have already shut down the context
+            pass  
 
 
 if __name__ == '__main__':

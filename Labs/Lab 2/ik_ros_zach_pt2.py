@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-
-
 import numpy as np
 import ikpy.chain
 import ikpy.utils.geometry
@@ -14,9 +11,6 @@ from hello_helpers.hello_misc import HelloNode
 DEFAULT_ORIENTATION = ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)
 
 
-# =============================================================================
-# URDF CLEANUP 
-# =============================================================================
 def build_ik_chain():
     
     pkg_path = str(importlib_resources.files('stretch_urdf'))
@@ -25,7 +19,7 @@ def build_ik_chain():
     original_urdf = urdfpy.URDF.load(urdf_file_path)
     modified_urdf = original_urdf.copy()
 
-    # --- Remove links we don't need for arm IK ---
+    # Remove links we don't need for arm IK 
     names_of_links_to_remove = [
         'link_right_wheel', 'link_left_wheel', 'caster_link',
         'link_head', 'link_head_pan', 'link_head_tilt',
@@ -55,7 +49,7 @@ def build_ik_chain():
     for lr in links_to_remove:
         modified_urdf._links.remove(lr)
 
-    # --- Remove corresponding joints ---
+    # Remove corresponding joints
     names_of_joints_to_remove = [
         'joint_right_wheel', 'joint_left_wheel', 'caster_joint',
         'joint_head', 'joint_head_pan', 'joint_head_tilt',
@@ -132,10 +126,6 @@ def build_ik_chain():
     os.makedirs('/tmp/iktutorial', exist_ok=True)
     modified_urdf.save(new_urdf_path)
 
-    # Index:  [0]     [1]    [2]    [3]    [4]   [5]    [6]   [7]   [8]   [9]   [10]  [11]   [12]  [13]  [14]   [15]
-    # Joint:  base_lk rot    trans  mast   lift  arm_l4 l3    l2    l1    l0    yaw   yaw_bt pitch roll  grip   grasp
-    # Type:   fixed   rev    prism  fixed  prism fixed  prism prism prism prism rev   fixed  rev   rev   fixed  fixed
-    # Active: False   True   True   False  True  False  True  True  True  True  True  False  True  True  False  False
     active_links_mask = [
         False,  # [0]  Base link (fixed origin)
         True,   # [1]  joint_base_rotation (revolute)
@@ -169,9 +159,7 @@ def build_ik_chain():
     return chain
 
 
-# =============================================================================
 # ROS 2 NODE 
-# =============================================================================
 class StretchIKNode(HelloNode):
    
 
@@ -193,8 +181,6 @@ class StretchIKNode(HelloNode):
         js = self.joint_state
         if joint_name in js.name:
             return js.position[js.name.index(joint_name)]
-        # Special case: wrist_extension may not appear directly in some firmware
-        # versions. Compute it from the 4 arm segments if needed.
         if joint_name == 'wrist_extension':
             total = 0.0
             for seg in ['joint_arm_l0', 'joint_arm_l1', 'joint_arm_l2', 'joint_arm_l3']:
@@ -212,12 +198,12 @@ class StretchIKNode(HelloNode):
             bounds = chain.links[index].bounds
             return min(max(value, bounds[0]), bounds[1])
 
-        # Read from ROS 2 topic instead of stretch_body
+        # Read from ROS 2 
         q_base_rot = 0.0   # virtual — always starts at 0
         q_base_trans = 0.0  # virtual — always starts at 0
         q_lift = bound_range('joint_lift', self.get_joint_position('joint_lift'))
 
-        # Total arm extension, divided by 4 for the ikpy chain's 4 prismatic segments
+        # Total arm extension
         total_arm = self.get_joint_position('wrist_extension')
         q_arml = bound_range('joint_arm_l0', total_arm / 4.0)
 
@@ -239,7 +225,7 @@ class StretchIKNode(HelloNode):
         q_pitch = q[12]      # Wrist pitch (radians)
         q_roll = q[13]       # Wrist roll (radians)
 
-        # --- Step 1: Rotate the base ---
+        # Step 1: Rotate the base 
         if abs(q_base_rot) > 0.001:  # skip if negligible rotation
             self.get_logger().info(f'Step 1: Rotating base by {q_base_rot:.3f} rad '
                                    f'({np.degrees(q_base_rot):.1f} deg)')
@@ -247,7 +233,7 @@ class StretchIKNode(HelloNode):
         else:
             self.get_logger().info('Step 1: No base rotation needed')
 
-        # --- Step 2: Translate + move arm/wrist simultaneously ---
+        # Step 2: Translate + move arm/wrist simultaneously 
         self.get_logger().info(
             f'Step 2: Commanding translate={q_base_trans:.3f}m, lift={q_lift:.3f}m, '
             f'arm={q_arm:.3f}m, yaw={q_yaw:.2f}, pitch={q_pitch:.2f}, roll={q_roll:.2f}'
@@ -275,7 +261,6 @@ class StretchIKNode(HelloNode):
         )
         self.get_logger().info(f'IK solution: {[f"{v:.3f}" for v in q_soln]}')
 
-        # Validate: check if the FK of the solution is close to the target
         fk_result = chain.forward_kinematics(q_soln)
         achieved_pos = fk_result[:3, 3]
         err = np.linalg.norm(achieved_pos - target_point)
@@ -297,19 +282,14 @@ class StretchIKNode(HelloNode):
         return chain.forward_kinematics(q)
 
 
-# =============================================================================
 # MAIN
-# =============================================================================
 def main():
 
-    
     chain = build_ik_chain()
 
-    # Create our ROS 2 node
     node = StretchIKNode()
 
     try:
-        # Wait until we have joint state data from the robot
         node.wait_for_joint_states()
 
         node.get_logger().info('Raising lift for safe stow...')
@@ -322,46 +302,46 @@ def main():
         time.sleep(6.0)
         node.get_logger().info('Stow complete. Starting IK...')
 
-        # Print current end-effector pose (should be stowed position)
+        # Print current end-effector pose 
         current_pose = node.get_current_grasp_pose(chain)
         node.get_logger().info(f'Current EE pose (stowed):\n{current_pose}')
 
 
         moves = [
             # 
-            ("Zigzag RIGHT",
+            ("STEP 1",
              [0.5, 0, 0.2],
              ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
 
-            ("Zigzag LEFT",
+            ("STEP 2",
              [0.2, .2, 0.1],
              ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
 
             # 
-            ("Reach UP",
+            ("STEP 3",
              [-0.5, 0, 0.2],
              ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
 
             # 
-            ("Reach FORWARD LOW",
+            ("STEP 4",
              [-.1, 0, -0.1],
              ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
 
-             ("Zigzag RIGHT",
+             ("STEP 5",
              [0.2, 0.1, 0.2],
              ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
 
-            ("Zigzag LEFT",
+            ("STEP 6",
              [-0.1, 0.5, 0.1],
              ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
 
             # 
-            ("Reach UP",
+            ("STEP 7",
              [0.2, 0, 0.2],
              ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
 
             # 
-            ("Reach FORWARD LOW",
+            ("STEP 8",
              [0.4, 0.2, -0.1],
              ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
         ]
@@ -372,7 +352,7 @@ def main():
             node.get_logger().info(f'Offset: {offset}')
             node.get_logger().info(f'{"="*50}')
 
-            # Get current EE position (updates each move since robot moved)
+            # Get current EE position 
             current_pose = node.get_current_grasp_pose(chain)
             current_pos = current_pose[:3, 3]
             target_point = (current_pos + np.array(offset)).tolist()
@@ -387,7 +367,7 @@ def main():
             q_soln = node.move_to_grasp_goal(chain, target_point, orientation)
 
             if q_soln is not None:
-                time.sleep(1.0)  # Let robot settle before next move
+                time.sleep(1.0)  
                 final_pose = node.get_current_grasp_pose(chain)
                 final_pos = final_pose[:3, 3]
                 node.get_logger().info(
