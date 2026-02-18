@@ -1,15 +1,5 @@
 #!/usr/bin/env python3
-"""
 
-PREREQUISITES:
-  1. Install dependencies (on the Stretch):
-       pip3 install ikpy urchin --break-system-packages
-  2. Launch the Stretch driver in a separate terminal:
-       ros2 launch stretch_core stretch_driver.launch.py mode:=position
-  3. Then run this script:
-       python3 ik_ros2.py
-
-"""
 
 import numpy as np
 import ikpy.chain
@@ -21,15 +11,14 @@ import rclpy
 from hello_helpers.hello_misc import HelloNode
 
 
-TARGET_OFFSET = [0.5, 0 , 0.06]  
-TARGET_ORIENTATION = ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)
+DEFAULT_ORIENTATION = ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)
 
 
 # =============================================================================
 # URDF CLEANUP 
 # =============================================================================
 def build_ik_chain():
-   
+    
     pkg_path = str(importlib_resources.files('stretch_urdf'))
     urdf_file_path = pkg_path + '/SE3/stretch_description_SE3_eoa_wrist_dw3_tool_sg3.urdf'
 
@@ -96,7 +85,6 @@ def build_ik_chain():
     for jr in joints_to_remove:
         modified_urdf._joints.remove(jr)
 
-    #add rotation
     joint_base_rotation = urdfpy.Joint(
         name='joint_base_rotation',
         parent='base_link',
@@ -144,7 +132,6 @@ def build_ik_chain():
     os.makedirs('/tmp/iktutorial', exist_ok=True)
     modified_urdf.save(new_urdf_path)
 
-    
     # Index:  [0]     [1]    [2]    [3]    [4]   [5]    [6]   [7]   [8]   [9]   [10]  [11]   [12]  [13]  [14]   [15]
     # Joint:  base_lk rot    trans  mast   lift  arm_l4 l3    l2    l1    l0    yaw   yaw_bt pitch roll  grip   grasp
     # Type:   fixed   rev    prism  fixed  prism fixed  prism prism prism prism rev   fixed  rev   rev   fixed  fixed
@@ -186,24 +173,11 @@ def build_ik_chain():
 # ROS 2 NODE 
 # =============================================================================
 class StretchIKNode(HelloNode):
-    """
-    A ROS 2 node that:
-      1. Subscribes to /stretch/joint_states (handled by HelloNode parent class)
-      2. Runs ikpy inverse kinematics
-      3. Commands the robot via move_to_pose() (handled by HelloNode parent class)
-
-    HelloNode gives us for free:
-      - self.joint_state  → latest JointState message (updated by subscriber)
-      - self.move_to_pose(dict, blocking=True) → sends FollowJointTrajectory goals
-      - self.trajectory_client → the action client (if you need lower-level control)
-    """
+   
 
     def __init__(self):
         HelloNode.__init__(self)
-        # Initialize the ROS 2 node. HelloNode.main() sets up:
-        #   - The /stretch/joint_states subscriber
-        #   - The /stretch_controller/follow_joint_trajectory action client
-        #   - TF2 buffer (for transforms, if needed later)
+        
         HelloNode.main(self, 'stretch_ik_node', 'stretch_ik_node',
                         wait_for_first_pointcloud=False)
 
@@ -215,17 +189,12 @@ class StretchIKNode(HelloNode):
         self.get_logger().info('Joint states received!')
 
     def get_joint_position(self, joint_name):
-        """
-        Look up a joint's current position from the latest JointState message.
         
-        The JointState message has parallel arrays:
-          joint_state.name     = ['joint_arm_l0', 'joint_lift', 'joint_wrist_yaw', ...]
-          joint_state.position = [0.0,             0.6,          1.57,              ...]
-        So we find the index of the name and return the position at that index.
-        """
         js = self.joint_state
         if joint_name in js.name:
             return js.position[js.name.index(joint_name)]
+        # Special case: wrist_extension may not appear directly in some firmware
+        # versions. Compute it from the 4 arm segments if needed.
         if joint_name == 'wrist_extension':
             total = 0.0
             for seg in ['joint_arm_l0', 'joint_arm_l1', 'joint_arm_l2', 'joint_arm_l3']:
@@ -235,7 +204,7 @@ class StretchIKNode(HelloNode):
         raise KeyError(f"Joint '{joint_name}' not found in joint_states: {js.name}")
 
     def get_current_configuration(self, chain):
-        
+       
         def bound_range(joint_name, value):
             """Clamp a value to the ikpy chain's joint limits."""
             names = [l.name for l in chain.links]
@@ -294,7 +263,7 @@ class StretchIKNode(HelloNode):
         self.move_to_pose(pose, blocking=True)
 
     def move_to_grasp_goal(self, chain, target_point, target_orientation):
-        
+    
         q_init = self.get_current_configuration(chain)
         self.get_logger().info(f'Current config: {[f"{v:.3f}" for v in q_init]}')
 
@@ -332,9 +301,8 @@ class StretchIKNode(HelloNode):
 # MAIN
 # =============================================================================
 def main():
-    
 
-    # Build the IK chain (URDF cleanup — no ROS needed for this step)
+    
     chain = build_ik_chain()
 
     # Create our ROS 2 node
@@ -344,7 +312,6 @@ def main():
         # Wait until we have joint state data from the robot
         node.wait_for_joint_states()
 
-    
         node.get_logger().info('Raising lift for safe stow...')
         node.move_to_pose({'joint_lift': 0.5}, blocking=True)
 
@@ -359,34 +326,81 @@ def main():
         current_pose = node.get_current_grasp_pose(chain)
         node.get_logger().info(f'Current EE pose (stowed):\n{current_pose}')
 
-        # --- Compute absolute target from relative offset ---
-        # current_pose is a 4x4 homogeneous transform matrix.
-        # The position is in the last column: current_pose[:3, 3] = [x, y, z]
-        current_pos = current_pose[:3, 3]
-        target_point = (current_pos + np.array(TARGET_OFFSET)).tolist()
 
-        node.get_logger().info(
-            f'Current EE position: [{current_pos[0]:.3f}, {current_pos[1]:.3f}, {current_pos[2]:.3f}]'
-        )
-        node.get_logger().info(
-            f'Offset: {TARGET_OFFSET}'
-        )
-        node.get_logger().info(
-            f'Absolute target: [{target_point[0]:.3f}, {target_point[1]:.3f}, {target_point[2]:.3f}]'
-        )
+        moves = [
+            # 
+            ("Zigzag RIGHT",
+             [0.5, 0, 0.2],
+             ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
 
-        # Run IK and move to the target
-        node.get_logger().info(
-            f'Moving to target: pos={[f"{v:.3f}" for v in target_point]}, '
-            f'orientation=rpy(0, 0, {-np.pi/2:.2f})'
-        )
-        q_soln = node.move_to_grasp_goal(chain, target_point, TARGET_ORIENTATION)
+            ("Zigzag LEFT",
+             [0.2, .2, 0.1],
+             ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
 
-        if q_soln is not None:
-            # Print final pose after moving
-            time.sleep(1.0)  # Let the robot settle
-            final_pose = node.get_current_grasp_pose(chain)
-            node.get_logger().info(f'Final EE pose:\n{final_pose}')
+            # 
+            ("Reach UP",
+             [-0.5, 0, 0.2],
+             ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
+
+            # 
+            ("Reach FORWARD LOW",
+             [-.1, 0, -0.1],
+             ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
+
+             ("Zigzag RIGHT",
+             [0.2, 0.1, 0.2],
+             ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
+
+            ("Zigzag LEFT",
+             [-0.1, 0.5, 0.1],
+             ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
+
+            # 
+            ("Reach UP",
+             [0.2, 0, 0.2],
+             ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
+
+            # 
+            ("Reach FORWARD LOW",
+             [0.4, 0.2, -0.1],
+             ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)),
+        ]
+
+        for i, (name, offset, orientation) in enumerate(moves):
+            node.get_logger().info(f'\n{"="*50}')
+            node.get_logger().info(f'Move {i+1}/{len(moves)}: {name}')
+            node.get_logger().info(f'Offset: {offset}')
+            node.get_logger().info(f'{"="*50}')
+
+            # Get current EE position (updates each move since robot moved)
+            current_pose = node.get_current_grasp_pose(chain)
+            current_pos = current_pose[:3, 3]
+            target_point = (current_pos + np.array(offset)).tolist()
+
+            node.get_logger().info(
+                f'Current EE: [{current_pos[0]:.3f}, {current_pos[1]:.3f}, {current_pos[2]:.3f}]'
+            )
+            node.get_logger().info(
+                f'Target:     [{target_point[0]:.3f}, {target_point[1]:.3f}, {target_point[2]:.3f}]'
+            )
+
+            q_soln = node.move_to_grasp_goal(chain, target_point, orientation)
+
+            if q_soln is not None:
+                time.sleep(1.0)  # Let robot settle before next move
+                final_pose = node.get_current_grasp_pose(chain)
+                final_pos = final_pose[:3, 3]
+                node.get_logger().info(
+                    f'Move {i+1} complete. EE at: '
+                    f'[{final_pos[0]:.3f}, {final_pos[1]:.3f}, {final_pos[2]:.3f}]'
+                )
+            else:
+                node.get_logger().warn(
+                    f'Move {i+1} ({name}) failed IK — skipping to next move'
+                )
+                continue
+
+        node.get_logger().info('\nAll moves complete!')
 
     except KeyboardInterrupt:
         node.get_logger().info('Interrupted by user')

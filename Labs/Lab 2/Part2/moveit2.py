@@ -28,7 +28,7 @@ class MoveMe(HelloNode):
             # For driving the base: the positive x-axis is pointing out of the front of the robot (the flat side of the base). 
             # Positive y-axis is on the left of the robot (opposite direction the arm is facing).
             goal_state.set_joint_group_positions(planning_group, 
-                [0.3, 0.0, 0.0, 
+                [-0.2, -0.2, 0.0, 
                 self.get_joint_pos('joint_lift'), self.get_joint_pos('joint_arm_l3'), 
                 self.get_joint_pos('joint_arm_l2'), self.get_joint_pos('joint_arm_l1'), self.get_joint_pos('joint_arm_l0'), 
                 self.get_joint_pos('joint_wrist_yaw'), self.get_joint_pos('joint_wrist_pitch'), self.get_joint_pos('joint_wrist_roll')]
