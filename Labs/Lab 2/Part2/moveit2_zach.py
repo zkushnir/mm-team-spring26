@@ -62,14 +62,14 @@ class MoveMe(HelloNode):
                  lift=0.50,      arm=[arm_each]*4, wrist=stow_wrist),
 
             # From pose2 (0.2, 0.0, -π/2): same base position, rotate wrist only
-            dict(name='pose3', x=0.2,  y=0.0,  theta=-np.pi/2,
+            dict(name='pose3', x=0.2,  y=-0.2,  theta=-np.pi/2,
                  lift=0.50,      arm=[arm_each]*4,
                  wrist=[stow_wrist[0]+wrist_rot,
                         stow_wrist[1]+wrist_rot,
                         stow_wrist[2]+wrist_rot]),
 
             # From pose3 (facing right -π/2): right=(-x)×0.4, back=(+y)×0.2, rotate -90° → theta=π
-            dict(name='pose4', x=-0.2, y=0.2,  theta=np.pi,
+            dict(name='pose4', x=-0.2, y=-0.2,  theta=np.pi,
                  lift=stow_lift, arm=stow_arm, wrist=stow_wrist),
         ]
 
