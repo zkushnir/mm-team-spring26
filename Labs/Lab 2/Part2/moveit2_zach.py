@@ -60,8 +60,8 @@ class MoveMe(HelloNode):
                  arm=[stow["arm_l3"], stow["arm_l2"], stow["arm_l1"], stow["arm_l0"]],
                  wrist=[stow["wrist_yaw"], stow["wrist_pitch"], stow["wrist_roll"]]),
 
-            # pose 1: base to (-20cm, -20cm) and lift to 0.5m
-            dict(name="pose1", x=-0.20, y=-0.20, theta=0.0,
+            # pose 1: base to (-25cm, -25cm) and lift to 0.5m
+            dict(name="pose1", x=-0.25, y=-0.25, theta=0.0,
                  lift=0.50,
                  arm=[stow["arm_l3"], stow["arm_l2"], stow["arm_l1"], stow["arm_l0"]],
                  wrist=[stow["wrist_yaw"], stow["wrist_pitch"], stow["wrist_roll"]]),
