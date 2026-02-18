@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
 """
-Inverse Kinematics control for Stretch 3 via ROS 2.
-
-This script replaces the stretch_body Python API with ROS 2 interfaces,
-while keeping the same ikpy-based IK solver from the original script.
 
 PREREQUISITES:
   1. Install dependencies (on the Stretch):
@@ -13,34 +9,6 @@ PREREQUISITES:
   3. Then run this script:
        python3 ik_ros2.py
 
-ARCHITECTURE OVERVIEW:
-  - Original script used `stretch_body.robot.Robot()` to directly talk to hardware.
-  - This script uses ROS 2 topics and actions instead:
-      * Reads joint positions from `/stretch/joint_states` topic (sensor_msgs/JointState)
-      * Sends motion commands via HelloNode's `move_to_pose()` method, which internally
-        uses the `/stretch_controller/follow_joint_trajectory` action server.
-  - The URDF cleanup and ikpy chain construction are IDENTICAL to the original.
-
-KEY JOINT NAME MAPPING (stretch_body → ROS 2):
-  ┌──────────────────────────┬──────────────────────────────────────────────┐
-  │ Original (stretch_body)  │ ROS 2 (joint_states topic / move_to_pose)   │
-  ├──────────────────────────┼──────────────────────────────────────────────┤
-  │ robot.base.rotate_by()   │ move_to_pose({'rotate_mobile_base': x})     │
-  │ robot.base.translate_by()│ move_to_pose({'translate_mobile_base': x})  │
-  │ robot.lift.status['pos'] │ joint_state['joint_lift']                   │
-  │ robot.arm.status['pos']  │ joint_state['wrist_extension']  (total arm) │
-  │ robot.end_of_arm 'yaw'   │ joint_state['joint_wrist_yaw']              │
-  │ robot.end_of_arm 'pitch' │ joint_state['joint_wrist_pitch']            │
-  │ robot.end_of_arm 'roll'  │ joint_state['joint_wrist_roll']             │
-  └──────────────────────────┴──────────────────────────────────────────────┘
-
-  VIRTUAL BASE CHAIN (added to URDF for IK):
-    base_link → [revolute Z: base rotation] → link_base_rotation
-             → [prismatic X: base translation] → link_base_translation
-             → [fixed: mast] → link_mast → [prismatic: lift] → ...
-
-  EXECUTION ORDER: The robot ROTATES first, then TRANSLATES + moves arm/wrist.
-  This is safer and matches diff-drive kinematics (turn to face, then drive).
 """
 
 import numpy as np
@@ -53,34 +21,15 @@ import rclpy
 from hello_helpers.hello_misc import HelloNode
 
 
-# =============================================================================
-# TARGET POSE — defined as a RELATIVE OFFSET from current end-effector position
-# =============================================================================
-# These offsets are in the ROBOT'S current base_link frame:
-#   dx = forward/backward (+ = forward)
-#   dy = left/right       (+ = left, - = right)
-#   dz = up/down          (+ = up)
-#
-# Example: "move the gripper 20cm to the left and 30cm up from where it is now"
-#   TARGET_OFFSET = [0.0, 0.2, 0.3]
-#
-# The orientation is ABSOLUTE (the final gripper heading you want).
-TARGET_OFFSET = [0.5, 0 , 0.06]  # 40cm forward, 30cm right, 10cm up
+TARGET_OFFSET = [0.5, 0 , 0.06]  
 TARGET_ORIENTATION = ikpy.utils.geometry.rpy_matrix(0.0, 0.0, -np.pi / 2)
 
 
 # =============================================================================
-# URDF CLEANUP — identical to original, builds a clean kinematic chain
+# URDF CLEANUP 
 # =============================================================================
 def build_ik_chain():
-    """
-    Load the Stretch URDF, strip unnecessary links/joints (cameras, wheels,
-    ArUco markers, head, etc.), add a virtual base translation joint, and
-    return an ikpy Chain.
-
-    This function is UNCHANGED from the original script — the IK math doesn't
-    care whether we're using stretch_body or ROS 2 underneath.
-    """
+   
     pkg_path = str(importlib_resources.files('stretch_urdf'))
     urdf_file_path = pkg_path + '/SE3/stretch_description_SE3_eoa_wrist_dw3_tool_sg3.urdf'
 
@@ -147,23 +96,7 @@ def build_ik_chain():
     for jr in joints_to_remove:
         modified_urdf._joints.remove(jr)
 
-    # --- Add virtual base joints: ROTATION first, then TRANSLATION ---
-    # The kinematic chain from base becomes:
-    #   base_link → [rotation about Z] → link_base_rotation
-    #            → [translation along X] → link_base_translation
-    #            → [mast (fixed)] → link_mast → ...
-    #
-    # WHY THIS ORDER MATTERS:
-    #   The robot rotates in place first (rotation about its own Z axis),
-    #   then drives forward/backward (translation along its new X axis).
-    #   This matches how a diff-drive base actually moves — you turn to face
-    #   the target, then drive toward it. If we did translate-then-rotate,
-    #   the IK solver would be working in a frame that doesn't match reality.
-
-    # 1. Base rotation: revolute joint about Z axis
-    #    Limits: ±π/2 (±90°) prevents the IK solver from finding solutions
-    #    where the robot rotates more than a quarter turn. This avoids
-    #    unintuitive solutions like "rotate 137° and drive backwards."
+    #add rotation
     joint_base_rotation = urdfpy.Joint(
         name='joint_base_rotation',
         parent='base_link',
@@ -182,10 +115,7 @@ def build_ik_chain():
     )
     modified_urdf._links.append(link_base_rotation)
 
-    # 2. Base translation: prismatic joint along X (after rotation)
-    #    Limits: 0 to 1.0m — FORWARD ONLY. Setting lower=0 prevents the
-    #    IK solver from driving the robot backwards. If you need backwards
-    #    motion, change lower to a negative value (e.g., -0.5).
+    
     joint_base_translation = urdfpy.Joint(
         name='joint_base_translation',
         parent='link_base_rotation',       # child of rotation link
@@ -214,11 +144,7 @@ def build_ik_chain():
     os.makedirs('/tmp/iktutorial', exist_ok=True)
     modified_urdf.save(new_urdf_path)
 
-    # Build the chain WITH an active_links_mask so ikpy only solves for
-    # joints that can actually move. Without this, ikpy assigns values to
-    # fixed joints (like joint_mast, joint_arm_l4) which produces solutions
-    # that look valid mathematically but can't be executed on the real robot.
-    #
+    
     # Index:  [0]     [1]    [2]    [3]    [4]   [5]    [6]   [7]   [8]   [9]   [10]  [11]   [12]  [13]  [14]   [15]
     # Joint:  base_lk rot    trans  mast   lift  arm_l4 l3    l2    l1    l0    yaw   yaw_bt pitch roll  grip   grasp
     # Type:   fixed   rev    prism  fixed  prism fixed  prism prism prism prism rev   fixed  rev   rev   fixed  fixed
@@ -257,7 +183,7 @@ def build_ik_chain():
 
 
 # =============================================================================
-# ROS 2 NODE — this replaces all stretch_body calls
+# ROS 2 NODE 
 # =============================================================================
 class StretchIKNode(HelloNode):
     """
@@ -300,8 +226,6 @@ class StretchIKNode(HelloNode):
         js = self.joint_state
         if joint_name in js.name:
             return js.position[js.name.index(joint_name)]
-        # Special case: wrist_extension may not appear directly in some firmware
-        # versions. Compute it from the 4 arm segments if needed.
         if joint_name == 'wrist_extension':
             total = 0.0
             for seg in ['joint_arm_l0', 'joint_arm_l1', 'joint_arm_l2', 'joint_arm_l3']:
@@ -311,32 +235,7 @@ class StretchIKNode(HelloNode):
         raise KeyError(f"Joint '{joint_name}' not found in joint_states: {js.name}")
 
     def get_current_configuration(self, chain):
-        """
-        Read current joint positions from ROS 2 and map them into the ikpy
-        chain's configuration vector.
-
-        WHAT CHANGED FROM ORIGINAL:
-          Before: robot.lift.status['pos'], robot.arm.status['pos'], etc.
-          Now:    self.get_joint_position('joint_lift'), etc.
-
-        The ikpy chain has 16 elements (including fixed joints). The mapping is:
-          [0]  base_link origin        → always 0.0 (fixed)
-          [1]  joint_base_rotation     → 0.0 (virtual base rotation, starts at 0)
-          [2]  joint_base_translation  → 0.0 (virtual base translation, starts at 0)
-          [3]  joint_mast              → 0.0 (fixed)
-          [4]  joint_lift              → lift position
-          [5]  joint_arm_l4            → 0.0 (fixed)
-          [6]  joint_arm_l3            → arm_extension / 4
-          [7]  joint_arm_l2            → arm_extension / 4
-          [8]  joint_arm_l1            → arm_extension / 4
-          [9]  joint_arm_l0            → arm_extension / 4
-          [10] joint_wrist_yaw         → wrist yaw
-          [11] joint_wrist_yaw_bottom  → 0.0 (fixed)
-          [12] joint_wrist_pitch       → wrist pitch
-          [13] joint_wrist_roll        → wrist roll
-          [14] joint_gripper_s3_body   → 0.0 (fixed)
-          [15] joint_grasp_center      → 0.0 (fixed)
-        """
+        
         def bound_range(joint_name, value):
             """Clamp a value to the ikpy chain's joint limits."""
             names = [l.name for l in chain.links]
@@ -362,33 +261,7 @@ class StretchIKNode(HelloNode):
                 q_yaw, 0.0, q_pitch, q_roll, 0.0, 0.0]
 
     def move_to_configuration(self, q):
-        """
-        Take an ikpy solution vector and command the robot via ROS 2.
-
-        EXECUTION ORDER:
-          1. Rotate the base first  (so the arm faces the target)
-          2. Then translate + move all arm/wrist joints simultaneously
-
-        WHY ROTATE FIRST?
-          Stretch is a diff-drive robot. If you translate and rotate at the
-          same time, the arm sweeps through an arc which might collide with
-          things. Rotating first to face the target, then driving forward,
-          is safer and matches how you'd intuitively position the robot.
-
-        UPDATED INDICES (16-element vector with rotation added):
-          [0]  fixed (base_link origin)
-          [1]  joint_base_rotation     ← NEW: revolute about Z
-          [2]  joint_base_translation  ← was index [1]
-          [3]  fixed (joint_mast)
-          [4]  joint_lift              ← was index [3]
-          [5]  fixed (joint_arm_l4)
-          [6-9]  arm segments          ← were indices [5-8]
-          [10] joint_wrist_yaw         ← was index [9]
-          [11] fixed (wrist_yaw_bottom)
-          [12] joint_wrist_pitch       ← was index [11]
-          [13] joint_wrist_roll        ← was index [12]
-          [14-15] fixed (gripper)
-        """
+        
         q_base_rot = q[1]   # Base rotation (relative, radians)
         q_base_trans = q[2]  # Base translation (relative, meters)
         q_lift = q[4]        # Lift height (absolute, meters)
@@ -421,12 +294,7 @@ class StretchIKNode(HelloNode):
         self.move_to_pose(pose, blocking=True)
 
     def move_to_grasp_goal(self, chain, target_point, target_orientation):
-        """
-        Run IK and move the robot. Returns the solution or None if IK failed.
-
-        This is essentially unchanged from the original — the ikpy math is the same,
-        we just swapped how we read current state and send commands.
-        """
+        
         q_init = self.get_current_configuration(chain)
         self.get_logger().info(f'Current config: {[f"{v:.3f}" for v in q_init]}')
 
@@ -464,9 +332,7 @@ class StretchIKNode(HelloNode):
 # MAIN
 # =============================================================================
 def main():
-    # NOTE: We do NOT call rclpy.init() here because HelloNode.main()
-    # (called inside StretchIKNode.__init__) already calls it internally.
-    # Calling it twice causes: RuntimeError: Context.init() must only be called once
+    
 
     # Build the IK chain (URDF cleanup — no ROS needed for this step)
     chain = build_ik_chain()
@@ -478,13 +344,7 @@ def main():
         # Wait until we have joint state data from the robot
         node.wait_for_joint_states()
 
-        # --- Stow the robot first so we start from a known configuration ---
-        # This retracts the arm and lowers the lift, giving us a clean starting
-        # point that's far from the target so you can see the robot move.
-        # --- Safety lift: raise the arm before stowing to avoid collisions ---
-        # If the lift is too low and the arm is extended, the stow command tries
-        # to retract the arm which can hit the ground or objects. Raising the
-        # lift first gives clearance.
+    
         node.get_logger().info('Raising lift for safe stow...')
         node.move_to_pose({'joint_lift': 0.5}, blocking=True)
 
