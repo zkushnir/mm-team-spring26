@@ -35,10 +35,13 @@ class MoveMe(HelloNode):
         # Snapshot the "stow" joint positions so we can return to them at pose 4.
         stow = {
             "lift": self.get_joint_pos("joint_lift"),
-            "arm_l3": self.get_joint_pos("joint_arm_l3"),
-            "arm_l2": self.get_joint_pos("joint_arm_l2"),
-            "arm_l1": self.get_joint_pos("joint_arm_l1"),
-            "arm_l0": self.get_joint_pos("joint_arm_l0"),
+            # Clamp arm segments to a small positive value: when stowed they sit at/near 0.0
+            # (the minimum bound) and may read slightly negative due to encoder noise.
+            # OMPL rejects start states that are at or below the minimum bound.
+            "arm_l3": max(1e-3, self.get_joint_pos("joint_arm_l3")),
+            "arm_l2": max(1e-3, self.get_joint_pos("joint_arm_l2")),
+            "arm_l1": max(1e-3, self.get_joint_pos("joint_arm_l1")),
+            "arm_l0": max(1e-3, self.get_joint_pos("joint_arm_l0")),
             "wrist_yaw": self.get_joint_pos("joint_wrist_yaw"),
             "wrist_pitch": self.get_joint_pos("joint_wrist_pitch"),
             "wrist_roll": self.get_joint_pos("joint_wrist_roll"),
@@ -100,6 +103,7 @@ class MoveMe(HelloNode):
                     goal_pose["wrist"][0], goal_pose["wrist"][1], goal_pose["wrist"][2],
                 ],
             )
+            goal_state.update()
 
             # IMPORTANT: On some setups, TF for odom->base_link may not be available when this script starts.
             # If we call set_start_state_to_current_state() in that case, MoveIt gets an invalid (NaN) base start state
@@ -116,6 +120,7 @@ class MoveMe(HelloNode):
                     start_pose["wrist"][0], start_pose["wrist"][1], start_pose["wrist"][2],
                 ],
             )
+            start_state.update()
 
             if hasattr(moveit_plan, "set_start_state"):
                 try:
