@@ -57,19 +57,19 @@ class MoveMe(HelloNode):
             dict(name='pose1', x=0.2, y=0.2, theta=0.0,
                  lift=0.50,      arm=stow_arm, wrist=stow_wrist),
 
-            # From pose1 (0.2, 0.2, 0): move right 0.2m (dy=-0.2) + rotate +90°
-            dict(name='pose2', x=0.2,  y=0.0, theta=np.pi/2,
+            # From pose1 (0.2, 0.2, 0): move right 0.2m (dy=-0.2) + rotate to face right (theta=-π/2)
+            dict(name='pose2', x=0.2,  y=0.0,  theta=-np.pi/2,
                  lift=0.50,      arm=[arm_each]*4, wrist=stow_wrist),
 
-            # From pose2 (0.2, 0.0, π/2): rotate +90° in place → now facing -x
-            dict(name='pose3', x=0.2,  y=0.0,  theta=np.pi,
+            # From pose2 (0.2, 0.0, -π/2): same base position, rotate wrist only
+            dict(name='pose3', x=0.2,  y=0.0,  theta=-np.pi/2,
                  lift=0.50,      arm=[arm_each]*4,
                  wrist=[stow_wrist[0]+wrist_rot,
                         stow_wrist[1]+wrist_rot,
                         stow_wrist[2]+wrist_rot]),
 
-            # From pose3 (0.2, 0.0, π): right=+y(+0.4), back=+x(+0.2)
-            dict(name='pose4', x=0.4,  y=0.4,  theta=np.pi,
+            # From pose3 (facing right -π/2): right=(-x)×0.4, back=(+y)×0.2, rotate -90° → theta=π
+            dict(name='pose4', x=-0.2, y=0.2,  theta=np.pi,
                  lift=stow_lift, arm=stow_arm, wrist=stow_wrist),
         ]
 
