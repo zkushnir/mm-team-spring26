@@ -101,10 +101,38 @@ class MoveMe(HelloNode):
                 ],
             )
 
-            moveit_plan.set_start_state_to_current_state()
+            # IMPORTANT: On some setups, TF for odom->base_link may not be available when this script starts.
+            # If we call set_start_state_to_current_state() in that case, MoveIt gets an invalid (NaN) base start state
+            # and OMPL will refuse to plan ("Skipping invalid start state (invalid bounds)").
+            #
+            # To make planning robust, we explicitly set the start state to our previous pose (start_pose).
+            start_state = RobotState(moveit.get_robot_model())
+            start_state.set_joint_group_positions(
+                planning_group,
+                [
+                    start_pose["x"], start_pose["y"], start_pose["theta"],
+                    start_pose["lift"],
+                    start_pose["arm"][0], start_pose["arm"][1], start_pose["arm"][2], start_pose["arm"][3],
+                    start_pose["wrist"][0], start_pose["wrist"][1], start_pose["wrist"][2],
+                ],
+            )
+
+            if hasattr(moveit_plan, "set_start_state"):
+                try:
+                    moveit_plan.set_start_state(robot_state=start_state)
+                except TypeError:
+                    moveit_plan.set_start_state(start_state)
+            else:
+                # Fallback (may fail if TF is missing)
+                moveit_plan.set_start_state_to_current_state()
+
             moveit_plan.set_goal_state(robot_state=goal_state)
 
             plan = moveit_plan.plan(parameters=planning_params)
+            if plan is None or getattr(plan, "trajectory", None) is None:
+                self.get_logger().error("Planning failed (plan is None). Check base bounds / TF frames. Aborting.")
+                break
+
             self.execute_plan(plan)
 
             # Small pause so it's easy to observe segment boundaries
