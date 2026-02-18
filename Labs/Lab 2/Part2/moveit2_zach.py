@@ -9,20 +9,16 @@ import moveit2_utils
 
 # Make sure to run:
 #   ros2 launch stretch_core stretch_driver.launch.py
-#
-# This script plans with MoveIt (mobile base + arm) and then executes the resulting
-# trajectory by sending FollowJointTrajectory goals to the Stretch controller.
 
 class MoveMe(HelloNode):
     def __init__(self):
         HelloNode.__init__(self)
         self.main('move_me', 'move_me', wait_for_first_pointcloud=False)
 
-        # FIX 1: Publish a static odom->base_link TF at identity.
-        # The stretch_driver in position/trajectory mode does not publish the odom
-        # frame. Without it, MoveIt's current state monitor can't initialize the
-        # virtual base joint, and OMPL sees the start state as "invalid state".
-        # A static identity transform tells MoveIt the robot starts at the origin.
+        # Publish a static odom->base_link TF so MoveIt has a valid base frame.
+        # stretch_driver in position/trajectory mode does not publish the odom frame,
+        # which causes the current state monitor to log a warning and leave the virtual
+        # base joint uninitialized. This static transform gives it a valid anchor.
         self._static_tf = StaticTransformBroadcaster(self)
         t = TransformStamped()
         t.header.stamp = self.get_clock().now().to_msg()
@@ -32,148 +28,87 @@ class MoveMe(HelloNode):
         self._static_tf.sendTransform(t)
         time.sleep(0.5)  # Let TF propagate before MoveIt starts up
 
-        # Put the robot into a known configuration first
         self.stow_the_robot()
 
         planning_group = 'mobile_base_arm'
         moveit, moveit_plan, planning_params = moveit2_utils.setup_moveit(planning_group)
 
-        # FIX 2: Patch the Allowed Collision Matrix (ACM) to allow all self-collisions.
-        # The SRDF file is missing at its expected install path, so MoveIt falls back
-        # to a SRDF from the parameter server that has a different robot name. This
-        # causes a robot-name mismatch, and the ACM may not include entries for the
-        # telescoping arm segments (link_arm_l0..l3) that physically overlap when
-        # retracted. Without those entries, the stow position is falsely detected as
-        # self-colliding -> "invalid state". Allowing all self-collisions is safe here
-        # because our poses are carefully chosen and the robot is well-designed.
-        try:
-            robot_model = moveit.get_robot_model()
-            link_names = robot_model.link_model_names
-            with moveit.get_planning_scene_monitor().read_write() as scene:
-                acm = scene.allowed_collision_matrix
-                for l1 in link_names:
-                    for l2 in link_names:
-                        acm.set_entry(l1, l2, True)
-                scene.current_state.update()
-            self.get_logger().info("ACM updated: all self-collision pairs allowed (SRDF workaround).")
-        except Exception as e:
-            self.get_logger().warn(f"ACM update failed ({e}). Planning may still fail due to false self-collisions.")
-
-        # ---------------------------------------------------------------------
-        # How the planning_group joint vector is ordered (per the assignment):
-        #   [x, y, theta, lift, arm_l3, arm_l2, arm_l1, arm_l0, wrist_yaw, wrist_pitch, wrist_roll]
-        #
-        # Base frame convention in this assignment:
-        #   +x : out the front of the robot (the flat side of the base)
-        #   +y : to the robot's left (opposite the direction the arm faces)
-        #   theta : yaw rotation about +z (radians)
-        # ---------------------------------------------------------------------
-
-        # Snapshot the "stow" joint positions so we can return to them at pose 4.
-        stow = {
-            "lift": self.get_joint_pos("joint_lift"),
-            # Clamp arm segments to a small positive value: when stowed they sit at/near 0.0
-            # (the minimum bound) and may read slightly negative due to encoder noise.
-            # OMPL rejects start states that are at or below the minimum bound.
-            "arm_l3": max(1e-3, self.get_joint_pos("joint_arm_l3")),
-            "arm_l2": max(1e-3, self.get_joint_pos("joint_arm_l2")),
-            "arm_l1": max(1e-3, self.get_joint_pos("joint_arm_l1")),
-            "arm_l0": max(1e-3, self.get_joint_pos("joint_arm_l0")),
-            "wrist_yaw": self.get_joint_pos("joint_wrist_yaw"),
-            "wrist_pitch": self.get_joint_pos("joint_wrist_pitch"),
-            "wrist_roll": self.get_joint_pos("joint_wrist_roll"),
-        }
-
-        arm_extend = 0.4  # meters total extension target at pose 2
-        arm_each = arm_extend / 4.0
-        wrist_rot = np.deg2rad(45.0)
-
-        # Base waypoints from the diagram (meters / radians), relative to the start (pose 0).
-        # NOTE: y is "robot-left" (downward in the diagram), so "up" in the diagram is negative y.
-        poses = [
-            # pose 0: start (also pose 4)
-            dict(name="pose0", x=0.0,  y=0.0,  theta=0.0,
-                 lift=stow["lift"],
-                 arm=[stow["arm_l3"], stow["arm_l2"], stow["arm_l1"], stow["arm_l0"]],
-                 wrist=[stow["wrist_yaw"], stow["wrist_pitch"], stow["wrist_roll"]]),
-
-            # pose 1: base to (-25cm, -25cm) and lift to 0.5m
-            dict(name="pose1", x=-0.25, y=-0.25, theta=0.0,
-                 lift=0.50,
-                 arm=[stow["arm_l3"], stow["arm_l2"], stow["arm_l1"], stow["arm_l0"]],
-                 wrist=[stow["wrist_yaw"], stow["wrist_pitch"], stow["wrist_roll"]]),
-
-            # pose 2: base to (+40cm, -20cm), rotate to +90deg, extend arm to 0.4m total
-            dict(name="pose2", x=0.40, y=-0.20, theta=np.pi/2.0,
-                 lift=0.50,
-                 arm=[arm_each, arm_each, arm_each, arm_each],
-                 wrist=[stow["wrist_yaw"], stow["wrist_pitch"], stow["wrist_roll"]]),
-
-            # pose 3: base to (+20cm, +20cm), rotate to 180deg, rotate wrist +45deg on yaw/pitch/roll
-            dict(name="pose3", x=0.20, y=0.20, theta=np.pi,
-                 lift=0.50,
-                 arm=[arm_each, arm_each, arm_each, arm_each],
-                 wrist=[stow["wrist_yaw"] + wrist_rot,
-                        stow["wrist_pitch"] + wrist_rot,
-                        stow["wrist_roll"] + wrist_rot]),
-
-            # pose 4: return to start and stow all arm joints
-            dict(name="pose4", x=0.0,  y=0.0,  theta=0.0,
-                 lift=stow["lift"],
-                 arm=[stow["arm_l3"], stow["arm_l2"], stow["arm_l1"], stow["arm_l0"]],
-                 wrist=[stow["wrist_yaw"], stow["wrist_pitch"], stow["wrist_roll"]]),
+        # Snapshot stow positions.  Clamp arm segments away from the 0.0 minimum
+        # bound — encoder noise can leave them slightly negative, which makes OMPL
+        # reject the goal state as "invalid bounds".
+        stow_lift = self.get_joint_pos('joint_lift')
+        stow_arm  = [max(1e-3, self.get_joint_pos(f'joint_arm_l{i}')) for i in range(3, -1, -1)]
+        stow_wrist = [
+            self.get_joint_pos('joint_wrist_yaw'),
+            self.get_joint_pos('joint_wrist_pitch'),
+            self.get_joint_pos('joint_wrist_roll'),
         ]
 
-        # Plan + execute each segment (0->1, 1->2, 2->3, 3->4).
-        for seg_idx in range(len(poses) - 1):
-            start_pose = poses[seg_idx]
-            goal_pose  = poses[seg_idx + 1]
-            self.get_logger().info(f"--- Planning segment {seg_idx}: {start_pose['name']} -> {goal_pose['name']} ---")
+        arm_each  = 0.4 / 4.0          # 0.1 m per segment when arm is fully extended
+        wrist_rot = np.deg2rad(45.0)
+
+        # Absolute waypoints.  Base values are (x, y, theta) relative to the
+        # robot's starting position.
+        # +x = out the front (flat side), +y = robot's left, theta = yaw (rad).
+        abs_poses = [
+            dict(name='pose0', x=0.0,   y=0.0,   theta=0.0,
+                 lift=stow_lift, arm=stow_arm, wrist=stow_wrist),
+
+            dict(name='pose1', x=-0.25, y=-0.25, theta=0.0,
+                 lift=0.50,      arm=stow_arm, wrist=stow_wrist),
+
+            dict(name='pose2', x=0.40,  y=-0.20, theta=np.pi/2,
+                 lift=0.50,      arm=[arm_each]*4, wrist=stow_wrist),
+
+            dict(name='pose3', x=0.20,  y=0.20,  theta=np.pi,
+                 lift=0.50,      arm=[arm_each]*4,
+                 wrist=[stow_wrist[0]+wrist_rot,
+                        stow_wrist[1]+wrist_rot,
+                        stow_wrist[2]+wrist_rot]),
+
+            dict(name='pose4', x=0.0,   y=0.0,   theta=0.0,
+                 lift=stow_lift, arm=stow_arm, wrist=stow_wrist),
+        ]
+
+        # Track the robot's absolute position so we can compute deltas.
+        prev_x, prev_y, prev_theta = 0.0, 0.0, 0.0
+
+        for seg_idx in range(len(abs_poses) - 1):
+            goal = abs_poses[seg_idx + 1]
+            self.get_logger().info(
+                f"--- Segment {seg_idx}: {abs_poses[seg_idx]['name']} -> {goal['name']} ---")
+
+            # Because the static odom TF is fixed at identity, MoveIt always sees the
+            # base at (0, 0, 0) when it reads set_start_state_to_current_state().
+            # So the goal must be expressed as a *delta* from the previous absolute
+            # pose — exactly the displacement we want the robot to make.
+            dx     = goal['x']     - prev_x
+            dy     = goal['y']     - prev_y
+            dtheta = (goal['theta'] - prev_theta + np.pi) % (2 * np.pi) - np.pi
 
             goal_state = RobotState(moveit.get_robot_model())
-            goal_state.set_joint_group_positions(
-                planning_group,
-                [
-                    goal_pose["x"], goal_pose["y"], goal_pose["theta"],
-                    goal_pose["lift"],
-                    goal_pose["arm"][0], goal_pose["arm"][1], goal_pose["arm"][2], goal_pose["arm"][3],
-                    goal_pose["wrist"][0], goal_pose["wrist"][1], goal_pose["wrist"][2],
-                ],
-            )
-            goal_state.update()
+            goal_state.set_joint_group_positions(planning_group, [
+                dx, dy, dtheta,
+                goal['lift'],
+                goal['arm'][0], goal['arm'][1], goal['arm'][2], goal['arm'][3],
+                goal['wrist'][0], goal['wrist'][1], goal['wrist'][2],
+            ])
 
-            # Explicitly set the start state to our previous pose rather than using
-            # set_start_state_to_current_state(), which fails when odom TF is missing.
-            start_state = RobotState(moveit.get_robot_model())
-            start_state.set_joint_group_positions(
-                planning_group,
-                [
-                    start_pose["x"], start_pose["y"], start_pose["theta"],
-                    start_pose["lift"],
-                    start_pose["arm"][0], start_pose["arm"][1], start_pose["arm"][2], start_pose["arm"][3],
-                    start_pose["wrist"][0], start_pose["wrist"][1], start_pose["wrist"][2],
-                ],
-            )
-            start_state.update()
-
-            if hasattr(moveit_plan, "set_start_state"):
-                try:
-                    moveit_plan.set_start_state(robot_state=start_state)
-                except TypeError:
-                    moveit_plan.set_start_state(start_state)
-            else:
-                moveit_plan.set_start_state_to_current_state()
-
+            # Mirror moveit2.py exactly: use the current sensor state as the start.
+            # This avoids the "invalid state" false self-collision issue that comes
+            # from constructing a fresh RobotState with default joint values.
+            moveit_plan.set_start_state_to_current_state()
             moveit_plan.set_goal_state(robot_state=goal_state)
 
             plan = moveit_plan.plan(parameters=planning_params)
-            if plan is None or getattr(plan, "trajectory", None) is None:
-                self.get_logger().error("Planning failed (plan is None). Check base bounds / TF frames. Aborting.")
+            if plan is None or getattr(plan, 'trajectory', None) is None:
+                self.get_logger().error('Planning failed. Aborting.')
                 break
 
             self.execute_plan(plan)
 
-            # Small pause so it's easy to observe segment boundaries
+            # Advance the tracked absolute position for the next delta calculation.
+            prev_x, prev_y, prev_theta = goal['x'], goal['y'], goal['theta']
             time.sleep(0.5)
 
     def execute_plan(self, plan):
