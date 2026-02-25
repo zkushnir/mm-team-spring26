@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 from geometry_msgs.msg import PoseStamped
 
+from rclpy.time import Time
+
 COLOR_PALETTE = [
     (10, 10, 255),
     (255, 56, 56),
@@ -85,6 +87,9 @@ def get_pose_msg(timestamp, frame_id, xyz_out):
     msg = PoseStamped()
 
     msg.header.stamp = timestamp
+
+    from rclpy.time import Time
+    msg.header.stamp = self.get_clock().now().to_msg()
     msg.header.frame_id = frame_id
 
     msg.pose.position.x = xyz_out[0]
