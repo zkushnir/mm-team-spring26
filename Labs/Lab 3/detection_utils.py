@@ -83,14 +83,17 @@ def pixel_to_3d(xy_pix, z_depth, camera_info):
 
     return xyz_out
 
-def get_pose_msg(timestamp, frame_id, xyz_out):
+def get_pose_msg(detection, depth_image, camera_info, timestamp):
     msg = PoseStamped()
 
-    msg.header.stamp = timestamp
+    centroid = detection["centroid"]
+    x_pix, y_pix = centroid
+    z_depth = depth_image[y_pix, x_pix]
 
-    from rclpy.time import Time
-    msg.header.stamp = self.get_clock().now().to_msg()
-    msg.header.frame_id = frame_id
+    xyz_out = pixel_to_3d(centroid, z_depth, camera_info)
+
+    msg.header.stamp = timestamp
+    msg.header.frame_id = camera_info.header.frame_id
 
     msg.pose.position.x = xyz_out[0]
     msg.pose.position.y = xyz_out[1]
