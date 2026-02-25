@@ -55,7 +55,11 @@ class IKTargetFollowing(HelloNode):
         # fill with your response
         #   transform the gripper pose to the base frame
 
-        gripper_transformed = self.tf_buffer.transform(gripper_transformed, self.target_frame, qos_profile=tf2_ros.qos_profile_default)   
+        gripper_transformed = self.tf_buffer.lookup_transform(
+            self.target_frame,
+            self.gripper_frame,
+            rclpy.time.Time()
+        )
 
         # TODO: -------------- end ---------------
 
@@ -142,8 +146,9 @@ class IKTargetFollowing(HelloNode):
         # TODO: ------------- start --------------
         # fill with your response, create a tf2 buffer and listener
 
-        #tf2 buffer and listener
-        
+        #tf2 buffer and listener are needed to transform the goal pose from the camera frame to the base frame, and to get the current gripper pose in the base frame for IK solving
+
+
 
         # TODO: -------------- end ---------------
         self.tf_buffer = tf2_ros.Buffer()
