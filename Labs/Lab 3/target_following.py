@@ -44,7 +44,8 @@ class IKTargetFollowing(HelloNode):
         # fill with your response
         #   transform the goal pose to the base frame
 
-        goal_transformed = None
+        goal_transformed = self.tf_buffer.transform(goal_msg, self.target_frame, qos_profile=tf2_ros.qos_profile_default)   
+        
         # TODO: -------------- end ---------------
 
         return goal_transformed
@@ -54,7 +55,8 @@ class IKTargetFollowing(HelloNode):
         # fill with your response
         #   transform the gripper pose to the base frame
 
-        gripper_transformed = None
+        gripper_transformed = self.tf_buffer.transform(gripper_transformed, self.target_frame, qos_profile=tf2_ros.qos_profile_default)   
+
         # TODO: -------------- end ---------------
 
         return gripper_transformed
@@ -78,7 +80,9 @@ class IKTargetFollowing(HelloNode):
         # fill with your response
         #   use the same functions you used for IK in Lab 2, now in `ik_ros_utils.py`, 
         #   to move the robot to the transformed goal point.
-        q_soln = None
+        
+        q_init = ik.get_current_configuration(self.joint_state)
+        q_soln = ik.get_grasp_goal(waypoint_pos, waypoint_orient, q_init)
         # TODO: -------------- end ---------------
 
         # NOTE: if you find that the robot's base is moving too much, its likely that the ik solver is
@@ -104,7 +108,11 @@ class IKTargetFollowing(HelloNode):
         #   in this case, find a waypoint toward the goal position that is delta away from the gripper position (make some progress towards the goal)
         #   otherwise, the goal is close and we can move there directly
 
-        waypoint_pos = None
+        dist = np.linalg.norm(goal_pos - gripper_pos)
+        if dist > self.delta:
+            waypoint_pos = gripper_pos + self.delta * (goal_pos - gripper_pos) / dist
+        else:
+            waypoint_pos = goal_pos
         # TODO: -------------- end ---------------
 
         # use an zero rotation for the waypoint (its a point so we don't need to worry about orientation)
@@ -132,8 +140,11 @@ class IKTargetFollowing(HelloNode):
 
 
         # TODO: ------------- start --------------
-        # fill with your response
-        #   create a tf2 buffer and listener
+        # fill with your response, create a tf2 buffer and listener
+
+        #tf2 buffer and listener
+        
+
         # TODO: -------------- end ---------------
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
