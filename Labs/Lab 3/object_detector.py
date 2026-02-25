@@ -89,8 +89,15 @@ class YOLOEObjectDetector(Node):
         # self.latest_depth = ...
         # self.latest_color_cam_info = ...
 
+        try:
+            self.latest_color = self.bridge.imgmsg_to_cv2(color_msg, desired_encoding='bgr8')
+            self.latest_depth = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough')
+            self.latest_color_cam_info = color_cam_info_msg
+        except CvBridgeError as e:
+            print(e)
+
         pass
-        # TODO: -------------- end ---------------
+        # TODO: -------------- end -------------
 
 
     def publish_goals_callback(self):
@@ -99,8 +106,12 @@ class YOLOEObjectDetector(Node):
         # fill with your response
         #   pass the color frame to YOLO-E, parse the results using detection_utils.parse_results()
 
+        if self.latest_color is not None:
+            results = self.model(self.latest_color, verbose=False)
+            detections = detection_utils.parse_results(results)
+        else:
+            detections = None
 
-        detections = None
         # TODO: -------------- end ---------------
 
         # create visualizations from the detections
@@ -135,6 +146,9 @@ class YOLOEObjectDetector(Node):
         #   save that message to self.goal_pose_msg
         # in part 2, edit the code you wrote for part 1 to now project all points in the mask to 3D,
         #   then get the centroid of the resulting pointcloud to use as the goal pose (instead of the 2D centroid in part 1)
+
+        detection = detections[target_idx]
+        self.goal_pose_msg = detection_utils.get_pose_msg(detection, self.latest_depth, self.latest_color_cam_info)     
 
         # self.goal_pose_msg = ...
         # TODO: -------------- end ---------------
