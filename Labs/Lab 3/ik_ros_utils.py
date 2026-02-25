@@ -121,7 +121,27 @@ def move_to_configuration(node, q):
     # TODO: ------------- start --------------
     # fill with your response
     #   your implementation from lab 2 - unpack the q solution to appropriate ros2 joints and command the robot joints to move accordingly
-    
+    q_base_rot = q[1]
+    q_base_trans = q[2]
+    q_lift = q[4]
+    q_arm = q[6] + q[7] + q[8] + q[9]
+    q_yaw = q[10]
+    q_pitch = q[12]
+    q_roll = q[13]
+
+    if abs(q_base_rot) > 0.001:
+        node.move_to_pose({'rotate_mobile_base': q_base_rot}, blocking=True)
+
+    pose = {
+        'translate_mobile_base': q_base_trans,
+        'joint_lift': q_lift,
+        'wrist_extension': q_arm,
+        'joint_wrist_yaw': q_yaw,
+        'joint_wrist_pitch': q_pitch,
+        'joint_wrist_roll': q_roll,
+    }
+
+    node.move_to_pose(pose, blocking=True)
     # TODO: -------------- end ---------------
 
 def print_q(q):
