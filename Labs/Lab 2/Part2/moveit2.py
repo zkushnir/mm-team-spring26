@@ -15,6 +15,7 @@ class MoveMe(HelloNode):
         self.main('move_me', 'move_me', wait_for_first_pointcloud=False)
         self.stow_the_robot()
 
+        
         planning_group = 'mobile_base_arm'
         moveit, moveit_plan, planning_params = moveit2_utils.setup_moveit(planning_group)
         
