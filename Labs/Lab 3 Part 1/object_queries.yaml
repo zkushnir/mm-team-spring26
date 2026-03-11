@@ -12,4 +12,5 @@ queries:
   - banana              # curved, elongated shape — tests non-convex grasps
   - shoe                # soft, deformable, irregular geometry
   - book                # flat, rigid, wide surface — tests wide grasp aperture
+  - red and white cup
 
