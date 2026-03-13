@@ -106,7 +106,7 @@ class IKTargetFollowing(HelloNode):
             print("Could not get current configuration")
             return
         
-        GRASP_THRESHOLD = 0.03
+        GRASP_THRESHOLD = 0.04
         
         # case 1: if distance too large, move to waypoint first
         distance_to_goal = np.linalg.norm(goal_pos - gripper_pos)
@@ -124,7 +124,23 @@ class IKTargetFollowing(HelloNode):
             if q_soln is not None:
                 ik.move_to_configuration(self, q_soln)
             return
-    
+
+        # case 2: close enough -> do one final committed approach to center grasp before closing
+        direction = goal_pos - gripper_pos
+        norm = np.linalg.norm(direction)
+        if norm > 1e-6:
+            direction = direction / norm
+        final_goal = goal_pos + 0.01 * direction
+
+        q_soln = ik.chain.inverse_kinematics(
+            final_goal,
+            initial_position=q_init
+        )
+        err = np.linalg.norm(ik.chain.forward_kinematics(q_soln)[:3, 3] - final_goal)
+        if np.isclose(err, 0.0, atol=2e-2):
+            ik.print_q(q_soln)
+            ik.move_to_configuration(self, q_soln)
+
         # if robot is close enough, close gripper around object
         print("Close enough, grasping")
         self._grasp_complete = True
@@ -162,10 +178,11 @@ class IKTargetFollowing(HelloNode):
         difference = goal_pos - gripper_pos
         distance = np.linalg.norm(difference)
 
-        if distance > self.delta:
+        step = max(self.delta, 0.05)
+        if distance > step:
             # waypoint to goal position 
             direction    = difference / distance
-            waypoint_pos = gripper_pos + self.delta * direction
+            waypoint_pos = gripper_pos + step * direction
         else:
             # close, go directly to the goal
             waypoint_pos = goal_pos
