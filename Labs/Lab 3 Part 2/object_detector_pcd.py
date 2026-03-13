@@ -156,13 +156,15 @@ class YOLOEObjectDetector(Node):
             return None
         z_depths[~valid] = float(np.median(z_depths[valid]))
 
-        # Project each mask pixel to 3D using the camera intrinsics
+        x_orig = ys
+        y_orig = (w - 1) - xs
+
         camera_mat = np.reshape(self.latest_color_cam_info.k, (3, 3))
         f_x, f_y = camera_mat[0, 0], camera_mat[1, 1]
         c_x, c_y = camera_mat[0, 2], camera_mat[1, 2]
         z_m = z_depths / 1000.0
-        x_m = (xs - c_x) * z_m / f_x
-        y_m = (ys - c_y) * z_m / f_y
+        x_m = (x_orig - c_x) * z_m / f_x
+        y_m = (y_orig - c_y) * z_m / f_y
 
         xyz_camera = np.array([x_m.mean(), y_m.mean(), z_m.mean()])
         print(xyz_camera * 100, 'cm (3D point cloud centroid)')
