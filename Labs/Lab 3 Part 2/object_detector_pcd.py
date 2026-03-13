@@ -143,8 +143,15 @@ class YOLOEObjectDetector(Node):
         target_detection = detections[target_idx]
         mask = target_detection["mask"]
         h, w = self.latest_depth.shape[:2]
-        xs = np.clip(mask[:, 0], 0, w - 1)
-        ys = np.clip(mask[:, 1], 0, h - 1)
+
+        # Use ALL pixels in the segmentation mask (filled polygon), not just boundary vertices.
+        # This matches Part 2 instructions and yields a more stable centroid for grasping.
+        mask_img = np.zeros((h, w), dtype=np.uint8)
+        cv2.fillPoly(mask_img, [mask.astype(np.int32)], 1)
+        ys, xs = np.where(mask_img > 0)
+        if len(xs) == 0:
+            self.goal_pose_msg = None
+            return None
 
         z_depths = self.latest_depth[ys, xs].astype(float)
 
