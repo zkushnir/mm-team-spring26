@@ -106,7 +106,7 @@ class IKTargetFollowing(HelloNode):
             print("Could not get current configuration")
             return
         
-        GRASP_THRESHOLD = 0.05
+        GRASP_THRESHOLD = 0.03
         
         # case 1: if distance too large, move to waypoint first
         distance_to_goal = np.linalg.norm(goal_pos - gripper_pos)
