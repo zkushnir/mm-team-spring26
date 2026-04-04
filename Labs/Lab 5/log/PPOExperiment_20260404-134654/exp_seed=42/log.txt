@@ -1,0 +1,63 @@
+ERROR 2026-04-04 13:47:37,861 sensai.util.logging:__exit__:410 - Exception within FileLoggerContext
+Traceback (most recent call last):
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\tianshou\highlevel\experiment.py", line 455, in run
+    trainer_result = world.trainer.run()
+                     ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\tianshou\trainer.py", line 769, in run
+    self.reset(
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\tianshou\trainer.py", line 861, in reset
+    super().reset(
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\tianshou\trainer.py", line 466, in reset
+    self._test_step(force_update_best=True, log_msg_prefix="Initial test step")
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\tianshou\trainer.py", line 689, in _test_step
+    test_stat = self._collect_test_episodes()
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\tianshou\trainer.py", line 665, in _collect_test_episodes
+    result = collector.collect(n_episode=self.params.test_step_num_episodes)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\tianshou\data\collector.py", line 503, in collect
+    collect_stats = self._collect(
+                    ^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\tianshou\data\collector.py", line 867, in _collect
+    collect_action_computation_batch_R = self._compute_action_policy_hidden(
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\tianshou\data\collector.py", line 733, in _compute_action_policy_hidden
+    act_batch_RA: ActBatchProtocol | DistBatchProtocol = self.policy(
+                                                         ^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\torch\nn\modules\module.py", line 1779, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\torch\nn\modules\module.py", line 1790, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\tianshou\algorithm\modelfree\reinforce.py", line 178, in forward
+    action_dist_input_BD, hidden_BH = self.actor(batch.obs, state=state, info=batch.info)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\torch\nn\modules\module.py", line 1779, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\torch\nn\modules\module.py", line 1790, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\tianshou\utils\net\continuous.py", line 228, in forward
+    logits, hidden = self.preprocess(obs, state)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\torch\nn\modules\module.py", line 1779, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\torch\nn\modules\module.py", line 1790, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\tianshou\utils\net\common.py", line 355, in forward
+    logits = self.model(obs)
+             ^^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\torch\nn\modules\module.py", line 1779, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\torch\nn\modules\module.py", line 1790, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\tianshou\utils\net\common.py", line 175, in forward
+    obs = torch.as_tensor(obs, device=device, dtype=torch.float32)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: can't convert np.ndarray of type numpy.object_. The only supported types are: float64, float32, float16, complex64, complex128, int64, int32, int16, int8, uint64, uint32, uint16, uint8, and bool.

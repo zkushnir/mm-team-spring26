@@ -1,0 +1,35 @@
+ERROR 2026-04-04 14:40:11,816 sensai.util.logging:__exit__:410 - Exception within FileLoggerContext
+Traceback (most recent call last):
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\tianshou\highlevel\experiment.py", line 464, in run
+    self._watch_agent(
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\tianshou\highlevel\experiment.py", line 482, in _watch_agent
+    result = collector.collect(n_episode=num_episodes, render=render)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\tianshou\data\collector.py", line 503, in collect
+    collect_stats = self._collect(
+                    ^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\tianshou\data\collector.py", line 877, in _collect
+    obs_next_RO, rew_R, terminated_R, truncated_R, info_R = self.env.step(
+                                                            ^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\tianshou\env\venvs.py", line 282, in step
+    self.workers[j].send(action[i])
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\tianshou\env\worker\dummy.py", line 41, in send
+    self.result = self.env.step(action)  # type: ignore
+                  ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\gymnasium\wrappers\common.py", line 125, in step
+    observation, reward, terminated, truncated, info = self.env.step(action)
+                                                       ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\gymnasium\wrappers\common.py", line 393, in step
+    return super().step(action)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\gymnasium\core.py", line 327, in step
+    return self.env.step(action)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\Lib\site-packages\gymnasium\wrappers\common.py", line 285, in step
+    return self.env.step(action)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\Labs\Lab 5\rl.py", line 71, in step
+    m.step_simulation(steps=10, realtime=self.env.render)
+  File "C:\Users\zskus\Desktop\Folders\CMU\mm-team-spring26\.venv\src\mengine\mengine\env.py", line 85, in step_simulation
+    p.stepSimulation(physicsClientId=env.id)
+pybullet.error: Not connected to physics server.

@@ -15,7 +15,12 @@ class TouchEnv(gym.Env):
 
     def _get_obs(self):
         # TODO: ------------- start --------------
-        return None
+        ee_pos, _ = self.robot.get_link_pos_orient(self.robot.end_effector, local_coordinate_frame=True)
+        obj_pos, _ = self.robot.global_to_local_coordinate_frame(*self.object.get_base_pos_orient())
+        diff = ee_pos - obj_pos
+        angles = self.robot.get_joint_angles(self.robot.controllable_joints)
+        joint_features = np.array([angles[2], np.sum(angles[3:7]), angles[7], angles[8], angles[9]])
+        return np.concatenate([ee_pos, obj_pos, diff, joint_features]).astype(np.float32)
         # TODO: -------------- end ---------------
 
     def _get_info(self):
@@ -67,7 +72,9 @@ class TouchEnv(gym.Env):
 
         # TODO: ------------- start --------------
         # TODO: Create a reward function that encourages the end effector to move towards the object on the table
-        reward = 0
+        ee_pos, _ = self.robot.get_link_pos_orient(self.robot.end_effector)
+        obj_pos, _ = self.object.get_base_pos_orient()
+        reward = -float(np.linalg.norm(ee_pos - obj_pos))
         # TODO: -------------- end ---------------
 
         observation = self._get_obs()
