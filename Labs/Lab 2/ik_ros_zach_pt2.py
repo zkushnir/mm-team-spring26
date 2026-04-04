@@ -162,7 +162,6 @@ def build_ik_chain():
 # ROS 2 NODE 
 class StretchIKNode(HelloNode):
    
-
     def __init__(self):
         HelloNode.__init__(self)
         
