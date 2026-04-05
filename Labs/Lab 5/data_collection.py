@@ -39,11 +39,17 @@ def collect_demos(n_demos=1000):
                 action = result.act
 
             # TODO: ------------- start --------------
-            # Append obs,action to X,y; step venv forward
+            X.append(obs[0])
+            y.append(action[0])
+            obs, _, terminated, truncated, info = venv.step(action)
+            terminated = terminated[0]
+            truncated = truncated[0]
             # TODO: -------------- end ---------------
 
     # TODO: ------------- start --------------
-    # Save all demos to .pkl file
+    with open('demos.pkl', 'wb') as f:
+        pickle.dump({'X': np.array(X), 'y': np.array(y)}, f)
+    print(f'Saved {len(X)} transitions to demos.pkl')
     # TODO: -------------- end ---------------
 
 if __name__ == '__main__':
