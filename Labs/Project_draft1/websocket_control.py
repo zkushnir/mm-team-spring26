@@ -10,7 +10,7 @@ from hello_helpers.hello_misc import HelloNode
 # =============================================================================
 EXO_JOINT         = "index"   # which joint drives the lift
 LIFT_MIN          = 0.45      # conservative lower bound (m) — above stow height
-LIFT_MAX          = 0.1      # conservative upper bound (m) — well below hard stop
+LIFT_MAX          = 0.75      # conservative upper bound (m) — well below hard stop
 INVERT            = False     # True flips open→close to up→down if needed
 DEADBAND          = 0.01      # ignore input changes smaller than this (normalized)
 SMOOTHING         = 0.25      # exponential smoothing alpha (0=frozen, 1=raw)
