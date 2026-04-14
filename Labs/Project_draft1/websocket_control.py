@@ -9,7 +9,7 @@ from hello_helpers.hello_misc import HelloNode
 # MVP TELEOPERATION CONFIG — edit these before each test run
 # =============================================================================
 EXO_JOINT         = "index"   # which joint drives the lift
-LIFT_MIN          = 0.2      # conservative lower bound (m) — above stow height
+LIFT_MIN          = 0.3      # conservative lower bound (m) — above stow height
 LIFT_MAX          = 0.1      # conservative upper bound (m) — well below hard stop
 INVERT            = False     # True flips open→close to up→down if needed
 DEADBAND          = 0.01      # ignore input changes smaller than this (normalized)
