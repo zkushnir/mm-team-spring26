@@ -45,9 +45,17 @@ STALE_TIMEOUT = 2.0    # seconds without a packet before a warning is logged
 ARM_MODE = {
     "index":  JointCfg("joint_lift",       0.45,  0.75, True,  0.01, 0.25, 0.003),
     "middle": JointCfg("wrist_extension",  0.00,  0.30, False, 0.01, 0.25, 0.003),
-    "ring":   JointCfg("joint_wrist_yaw", -0.50,  1.20, False, 0.01, 0.25, 0.010),
+    # ring  → base rotation via velocity mode (see BASE_ROT_* below)
     # pinky → base translation via velocity mode (see BASE_TRANS_* below)
 }
+
+# Ring (arm mode only) — velocity/incremental base rotation
+# rotate_mobile_base is a RELATIVE delta, not an absolute position.
+# Ring is treated as a joystick: center = stop, deflection = rotate.
+BASE_ROT_CENTER    = 0.50   # ring value that means "no rotation"
+BASE_ROT_DEADBAND  = 0.15   # normalized dead-zone around center
+BASE_ROT_MAX_STEP  = 0.05   # radians per command at full deflection (~3 deg/step)
+BASE_ROT_SMOOTHING = 0.25
 
 # Pinky (arm mode only) — velocity/incremental base translation
 # translate_mobile_base is a RELATIVE delta, not an absolute position.
@@ -149,7 +157,7 @@ class WebsocketStretchControl(HelloNode):
             self.get_logger().debug("[ARM] Settling after mode switch — holding position.")
             return
 
-        # Build absolute-joint pose dict (lift + arm extension + wrist yaw)
+        # Build absolute-joint pose dict (lift + arm extension)
         pose: dict = {}
         for exo_j, cfg in ARM_MODE.items():
             if exo_j not in joints:
@@ -172,6 +180,29 @@ class WebsocketStretchControl(HelloNode):
             self.move_to_pose(pose, blocking=False)
             self._last_commanded.update(pose)
             sent = True
+
+        # Ring → base rotation (relative/velocity mode, sent separately)
+        if "ring" in joints:
+            raw_r = float(joints["ring"])
+            if abs(raw_r - self._smoothed.get("ring", raw_r)) >= BASE_ROT_DEADBAND * 0.5:
+                r_smooth = self._smooth("ring", raw_r, BASE_ROT_SMOOTHING)
+            else:
+                r_smooth = self._smoothed.get("ring", raw_r)
+
+            centered_r = r_smooth - BASE_ROT_CENTER
+            if abs(centered_r) >= BASE_ROT_DEADBAND:
+                scale = (abs(centered_r) - BASE_ROT_DEADBAND) / (0.5 - BASE_ROT_DEADBAND)
+                step = (1.0 if centered_r > 0 else -1.0) * scale * BASE_ROT_MAX_STEP
+                self.get_logger().info(
+                    f"[ARM] rotate_mobile_base={step:+.4f}rad  (ring={r_smooth:.3f})"
+                )
+                # Note: rotate_mobile_base is a RELATIVE increment, not absolute position
+                self.move_to_pose({"rotate_mobile_base": step}, blocking=False)
+                sent = True
+            else:
+                self.get_logger().debug(
+                    f"[ARM] ring={r_smooth:.3f} in deadband — rotation skipped"
+                )
 
         # Pinky → base translation (relative/velocity mode, sent separately)
         if "pinky" in joints:
@@ -303,7 +334,7 @@ class WebsocketStretchControl(HelloNode):
 
 async def start_websocket_server(node):
     print("Starting WebSocket server on ws://0.0.0.0:8765")
-    print(f"  ARM mode     (wrist ≤ {WRIST_CLOSED_THRESH}): index→lift | middle→arm | ring→yaw | pinky→base")
+    print(f"  ARM mode     (wrist ≤ {WRIST_CLOSED_THRESH}): index→lift | middle→arm | ring→rotation | pinky→translation")
     print(f"  GRIPPER mode (wrist ≥ {WRIST_OPEN_THRESH}): ring→pitch | middle→roll | index→yaw | pinky→gripper")
     print(f"  Hysteresis band : [{WRIST_CLOSED_THRESH}, {WRIST_OPEN_THRESH}]")
     print(f"  Rate limit      : {CMD_INTERVAL}s  |  Stale timeout: {STALE_TIMEOUT}s")
