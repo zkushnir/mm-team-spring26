@@ -43,7 +43,7 @@ RIGHT_RING_NEUTRAL   = 0.5
 # =============================================================================
 # JOYSTICK PARAMETERS  (right hand)
 # =============================================================================
-AXIS_DEADBAND  = 0.05   # displacement from neutral below which no command fires
+AXIS_DEADBAND  = 0.15   # displacement from neutral below which no command fires
 AXIS_SMOOTHING = 0.25   # EMA alpha for right-hand finger values (0=frozen, 1=raw)
 JOYSTICK_RANGE = 0.40   # displacement that produces full-scale step
 
@@ -52,9 +52,9 @@ BASE_ROT_MAX_STEP    = 0.06   # radians — rotate_mobile_base
 BASE_TRANS_MAX_STEP  = 0.02   # meters  — translate_mobile_base
 LIFT_MAX_STEP        = 0.03   # meters  — joint_lift
 ARM_EXT_MAX_STEP     = 0.02   # meters  — wrist_extension
-WRIST_PITCH_MAX_STEP = 0.05   # radians — joint_wrist_pitch
-WRIST_YAW_MAX_STEP   = 0.05   # radians — joint_wrist_yaw
-WRIST_ROLL_MAX_STEP  = 0.05   # radians — joint_wrist_roll
+WRIST_PITCH_MAX_STEP = 0.15   # radians — joint_wrist_pitch
+WRIST_YAW_MAX_STEP   = 0.15   # radians — joint_wrist_yaw
+WRIST_ROLL_MAX_STEP  = 0.15   # radians — joint_wrist_roll
 GRIPPER_MAX_STEP     = 0.02   #         — gripper_aperture
 
 # Safe absolute position clamps for incremental joints
