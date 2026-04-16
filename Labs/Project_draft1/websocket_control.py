@@ -14,8 +14,8 @@ STALE_TIMEOUT = 2.0    # seconds without a packet → stale warning
 # =============================================================================
 # MODE SELECTION  (left hand)
 # =============================================================================
-MODE_ACTIVATE_THRESH = 0.60   # finger flex ≥ this activates a new mode
-MODE_RELEASE_THRESH  = 0.40   # current-mode finger must drop below this to release
+MODE_ACTIVATE_THRESH = 0.70   # finger flex ≥ this activates a new mode
+MODE_RELEASE_THRESH  = 0.30   # current-mode finger must drop below this to release
                                # The gap [0.40, 0.60] is the per-finger hysteresis band.
 MODE_DEBOUNCE_TIME   = 0.20   # seconds a candidate mode must be stable before switching
 MODE_SWITCH_COOLDOWN = 0.40   # seconds to suppress commands after any mode switch
@@ -31,9 +31,14 @@ MODE_PRIORITY = [
 ]
 
 # =============================================================================
-# NEUTRAL CALIBRATION  (right hand)
+# RIGHT-HAND JOYSTICK NEUTRAL  (fixed, not learned from startup)
+# 0.5 = mid-range of the normalized [0, 1] sensor output.
+# Displacement above neutral → positive step; below → negative step.
+# Adjust any axis here if your glove's resting posture is off-center.
 # =============================================================================
-NEUTRAL_CALIB_COUNT = 10   # packets to average on startup for right-hand neutral baseline
+RIGHT_INDEX_NEUTRAL  = 0.5
+RIGHT_MIDDLE_NEUTRAL = 0.5
+RIGHT_RING_NEUTRAL   = 0.5
 
 # =============================================================================
 # JOYSTICK PARAMETERS  (right hand)
@@ -91,15 +96,16 @@ class WebsocketStretchControl(HelloNode):
         self._mode_candidate_since: float = 0.0
         self._mode_switch_time: float = time.monotonic()
 
-        # EMA state for right-hand finger values (keys: "r_index", "r_middle", "r_ring").
-        # Updated on EVERY valid packet so values are always current when dispatch fires;
-        # prevents stale-EMA jumps when a mode first activates after a quiet period.
-        self._smoothed: dict[str, float] = {}
-
-        # Right-hand neutral baseline (locked after NEUTRAL_CALIB_COUNT packets)
-        self._neutral: dict[str, float] = {}
-        self._calib_buf: dict[str, list] = {}
-        self._calibrated: bool = False
+        # Right-hand neutral — fixed at the configured constants, not learned from startup.
+        # EMA is seeded at neutral so the first displacement reads zero.
+        self._neutral: dict[str, float] = {
+            "r_index":  RIGHT_INDEX_NEUTRAL,
+            "r_middle": RIGHT_MIDDLE_NEUTRAL,
+            "r_ring":   RIGHT_RING_NEUTRAL,
+        }
+        # EMA state for right-hand finger values (keys match _neutral above).
+        # Updated on EVERY valid packet so values are always current when dispatch fires.
+        self._smoothed: dict[str, float] = dict(self._neutral)
 
         # Last position commanded per Stretch joint — drives incremental control.
         # Pre-seeded from STOW_POSE; never relies on arbitrary fallback defaults.
@@ -118,36 +124,6 @@ class WebsocketStretchControl(HelloNode):
         new = prev + alpha * (raw - prev)
         self._smoothed[key] = new
         return new
-
-    # ------------------------------------------------------------------
-    # Neutral calibration
-    # ------------------------------------------------------------------
-
-    def _update_calibration(self, right: dict) -> bool:
-        """
-        Accumulate right-hand samples during startup.
-        Returns True once the neutral baseline has been locked in.
-        """
-        for f in ("index", "middle", "ring"):
-            if f in right:
-                self._calib_buf.setdefault(f, []).append(float(right[f]))
-
-        if all(len(self._calib_buf.get(f, [])) >= NEUTRAL_CALIB_COUNT
-               for f in ("index", "middle", "ring")):
-            self._neutral = {
-                f"r_{f}": sum(self._calib_buf[f][:NEUTRAL_CALIB_COUNT]) / NEUTRAL_CALIB_COUNT
-                for f in ("index", "middle", "ring")
-            }
-            # Seed EMA at neutral so the first displacement reads zero
-            for k, v in self._neutral.items():
-                self._smoothed[k] = v
-            self.get_logger().info(
-                "Neutral calibrated: "
-                + "  ".join(f"{k}={v:.3f}" for k, v in self._neutral.items())
-            )
-            self._calibrated = True
-
-        return self._calibrated
 
     # ------------------------------------------------------------------
     # Right-hand EMA: advance every packet regardless of active mode
@@ -393,21 +369,10 @@ class WebsocketStretchControl(HelloNode):
 
                 self._last_packet_time = time.monotonic()
 
-                # Phase 1: collect right-hand neutral baseline
-                if not self._calibrated:
-                    if not self._update_calibration(right):
-                        self.get_logger().debug(
-                            f"Calibrating neutral "
-                            f"({sum(len(v) for v in self._calib_buf.values())}"
-                            f" / {3 * NEUTRAL_CALIB_COUNT} samples)..."
-                        )
-                        continue
-
-                # Phase 2: advance right-hand EMA unconditionally so smoothed values
-                # are always current — no stale-EMA jump when a mode activates.
+                # Phase 1: advance right-hand EMA so smoothed values are always current
                 self._update_right_smoothed(right)
 
-                # Phase 3: resolve active mode from left hand
+                # Phase 2: resolve active mode from left hand
                 self._update_mode(left)
 
                 self.get_logger().debug(
@@ -418,7 +383,7 @@ class WebsocketStretchControl(HelloNode):
                     f"ring={right.get('ring', 0):.2f}]"
                 )
 
-                # Phase 4: dispatch — only when a mode is active
+                # Phase 3: dispatch — only when a mode is active
                 if self._mode == "base":
                     self._dispatch_base_mode()
                 elif self._mode == "arm":
@@ -471,7 +436,7 @@ async def start_websocket_server(node):
     print(f"  WRIST mode   (L ring)   : R index → pitch      | R middle → yaw | R ring → roll")
     print(f"  GRIPPER mode (L thumb)  : R index → gripper aperture")
     print(f"  Priority: thumb > ring > middle > index")
-    print(f"  Neutral calibration : first {NEUTRAL_CALIB_COUNT} packets")
+    print(f"  Joystick neutral    : index={RIGHT_INDEX_NEUTRAL}  middle={RIGHT_MIDDLE_NEUTRAL}  ring={RIGHT_RING_NEUTRAL}")
     print(f"  Rate limit          : {CMD_INTERVAL}s  |  Stale timeout: {STALE_TIMEOUT}s")
 
     async with websockets.serve(node.ws_handler, "0.0.0.0", 8765):
