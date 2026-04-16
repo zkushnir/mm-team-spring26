@@ -75,9 +75,13 @@ GRIPPER_RANGE     = ( 0.00,  0.60)
 STOW_POSE = {
     "joint_lift":        0.20,   # meters  — stow height
     "wrist_extension":   0.00,   # meters  — fully retracted
-    "joint_wrist_pitch": -0.90,  # radians — pointing down
-    "joint_wrist_yaw":   -1.40,  # radians — stow orientation
-    "joint_wrist_roll":   0.00,  # radians — neutral roll
+    # Wrist joints: use physical neutral (0.0), NOT the range hard-stops.
+    # These must be close to the actual robot position after stow_the_robot()
+    # so the first incremental wrist command does not produce a large jump.
+    # Verify against your specific Stretch configuration and update if needed.
+    "joint_wrist_pitch":  0.00,  # radians — neutral horizontal  (range -0.90 to 0.40)
+    "joint_wrist_yaw":    0.00,  # radians — centered            (range -1.40 to 1.40)
+    "joint_wrist_roll":   0.00,  # radians — neutral roll        (range -1.57 to 1.57)
     "gripper_aperture":   0.00,  #         — closed
 }
 
@@ -304,22 +308,41 @@ class WebsocketStretchControl(HelloNode):
         roll_step  = self._joystick_step("r_ring",   WRIST_ROLL_MAX_STEP,  "WRIST")
 
         pose: dict = {}
+
         if pitch_step != 0.0:
             last = self._last_commanded["joint_wrist_pitch"]
-            pose["joint_wrist_pitch"] = max(WRIST_PITCH_RANGE[0], min(WRIST_PITCH_RANGE[1], last + pitch_step))
+            new  = max(WRIST_PITCH_RANGE[0], min(WRIST_PITCH_RANGE[1], last + pitch_step))
+            if abs(new - last) > 0.001:
+                self.get_logger().info(
+                    f"[WRIST] pitch  smoothed={self._smoothed.get('r_index', 0.5):.3f}"
+                    f"  disp={self._smoothed.get('r_index', 0.5) - self._neutral['r_index']:+.3f}"
+                    f"  step={pitch_step:+.4f}  target={new:.4f}"
+                )
+                pose["joint_wrist_pitch"] = new
 
         if yaw_step != 0.0:
             last = self._last_commanded["joint_wrist_yaw"]
-            pose["joint_wrist_yaw"] = max(WRIST_YAW_RANGE[0], min(WRIST_YAW_RANGE[1], last + yaw_step))
+            new  = max(WRIST_YAW_RANGE[0], min(WRIST_YAW_RANGE[1], last + yaw_step))
+            if abs(new - last) > 0.001:
+                self.get_logger().info(
+                    f"[WRIST] yaw    smoothed={self._smoothed.get('r_middle', 0.5):.3f}"
+                    f"  disp={self._smoothed.get('r_middle', 0.5) - self._neutral['r_middle']:+.3f}"
+                    f"  step={yaw_step:+.4f}  target={new:.4f}"
+                )
+                pose["joint_wrist_yaw"] = new
 
         if roll_step != 0.0:
             last = self._last_commanded["joint_wrist_roll"]
-            pose["joint_wrist_roll"] = max(WRIST_ROLL_RANGE[0], min(WRIST_ROLL_RANGE[1], last + roll_step))
+            new  = max(WRIST_ROLL_RANGE[0], min(WRIST_ROLL_RANGE[1], last + roll_step))
+            if abs(new - last) > 0.001:
+                self.get_logger().info(
+                    f"[WRIST] roll   smoothed={self._smoothed.get('r_ring', 0.5):.3f}"
+                    f"  disp={self._smoothed.get('r_ring', 0.5) - self._neutral['r_ring']:+.3f}"
+                    f"  step={roll_step:+.4f}  target={new:.4f}"
+                )
+                pose["joint_wrist_roll"] = new
 
         if pose:
-            self.get_logger().info(
-                "[WRIST] " + "  ".join(f"{k}={v:.4f}" for k, v in pose.items())
-            )
             self.move_to_pose(pose, blocking=False)
             self._last_commanded.update(pose)
             self._last_cmd_time = now
