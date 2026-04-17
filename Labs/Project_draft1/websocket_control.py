@@ -49,13 +49,13 @@ JOYSTICK_RANGE = 0.40   # displacement that produces full-scale step
 
 # Per-axis max step sizes (physical units per command burst)
 BASE_ROT_MAX_STEP    = 0.16   # radians — rotate_mobile_base
-BASE_TRANS_MAX_STEP  = 0.12   # meters  — translate_mobile_base
-LIFT_MAX_STEP        = 0.05   # meters  — joint_lift
-ARM_EXT_MAX_STEP     = 0.05   # meters  — wrist_extension
+BASE_TRANS_MAX_STEP  = 0.16   # meters  — translate_mobile_base
+LIFT_MAX_STEP        = 0.1   # meters  — joint_lift
+ARM_EXT_MAX_STEP     = 0.1   # meters  — wrist_extension
 WRIST_PITCH_MAX_STEP = 0.15   # radians — joint_wrist_pitch
 WRIST_YAW_MAX_STEP   = 0.15   # radians — joint_wrist_yaw
 WRIST_ROLL_MAX_STEP  = 0.15   # radians — joint_wrist_roll
-GRIPPER_MAX_STEP     = 0.06   #         — gripper_aperture
+GRIPPER_MAX_STEP     = 0.1   #         — gripper_aperture
 
 # Safe absolute position clamps for incremental joints
 LIFT_RANGE        = (0.20, 1.10)
